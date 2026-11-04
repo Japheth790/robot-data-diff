@@ -87,3 +87,15 @@ def test_json_file_next_to_text(pair, tmp_path, capsys):
     assert "~1 changed" in capsys.readouterr().out
     assert json.loads(out.read_text(encoding="utf-8"))["summary"]["changed"] == 1
 
+
+def test_redirected_stdout_is_utf8(pair, tmp_path):
+    """Windows pipes default to the ANSI code page; reports must not crash."""
+    import os
+    import subprocess
+    import sys
+
+    env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
+    proc = subprocess.run([sys.executable, "-m", "robot_data_diff", "diff", *pair,
+                           "--format", "markdown"], capture_output=True, env=env)
+    assert proc.returncode == 0, proc.stderr
+    assert "→".encode() in proc.stdout

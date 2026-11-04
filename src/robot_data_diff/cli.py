@@ -121,6 +121,10 @@ def main(argv=None) -> int:
     """Exit codes: 0 OK, 1 a --fail-on rule hit, 2 error (bad input,
     unreadable dataset, ...)."""
     args = build_parser().parse_args(argv)
+    # Reports contain non-ASCII (arrows, task names); a redirected stdout on
+    # Windows would otherwise use the ANSI code page and crash.
+    if hasattr(sys.stdout, "reconfigure") and sys.stdout.encoding.lower() != "utf-8":
+        sys.stdout.reconfigure(encoding="utf-8")
     try:
         if args.cmd == "diff":
             return cmd_diff(args)
