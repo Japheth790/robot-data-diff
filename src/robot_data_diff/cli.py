@@ -32,6 +32,10 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--verify-stats", action="store_true",
                    help="recompute per-episode min/max/mean from data/ and warn "
                         "where the metadata stats disagree (stale metadata)")
+    d.add_argument("--match-by", choices=["index", "content"], default="index",
+                   help="pair episodes by episode_index (default) or by a hash "
+                        "of their action/state frames, which reports reordered "
+                        "episodes as moved instead of added + removed")
     d.add_argument("--cache-dir", metavar="DIR", default=None,
                    help="where to cache Hugging Face downloads")
     return p
@@ -41,12 +45,14 @@ def cmd_diff(args) -> int:
     print("loading A ...", file=sys.stderr)
     a = load_dataset(args.dataset_a, cache_dir=args.cache_dir,
                      with_quality=not args.no_quality,
-                     verify_stats=args.verify_stats)
+                     verify_stats=args.verify_stats,
+                     content_hash=args.match_by == "content")
     print(f"  {a.version}, {len(a.episodes)} episodes", file=sys.stderr)
     print("loading B ...", file=sys.stderr)
     b = load_dataset(args.dataset_b, cache_dir=args.cache_dir,
                      with_quality=not args.no_quality,
-                     verify_stats=args.verify_stats)
+                     verify_stats=args.verify_stats,
+                     content_hash=args.match_by == "content")
     print(f"  {b.version}, {len(b.episodes)} episodes", file=sys.stderr)
 
     for label, ds in (("A", a), ("B", b)):
@@ -55,7 +61,7 @@ def cmd_diff(args) -> int:
             print(f"warning: {label}: metadata stats disagree with data/ for {n} "
                   "episode(s); metadata may be stale", file=sys.stderr)
 
-    result = diff_datasets(a, b, checkpoint=args.checkpoint)
+    result = diff_datasets(a, b, checkpoint=args.checkpoint, match_by=args.match_by)
     print(render_text(result))
     if args.html:
         out = Path(args.html)

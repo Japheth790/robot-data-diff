@@ -54,19 +54,24 @@ def render_text(r: DiffResult) -> str:
         L.append(f"policy checkpoint: {r.checkpoint}")
     L.append("")
 
+    moved = f", >{len(r.moved)} moved" if r.match_by == "content" else ""
     L.append(f"Episodes: {r.a_episodes} -> {r.b_episodes} "
              f"(+{len(r.added)} added, -{len(r.removed)} removed, "
-             f"~{len(r.changed)} changed, ={r.unchanged} unchanged)")
+             f"~{len(r.changed)} changed{moved}, ={r.unchanged} unchanged)")
     if r.added:
         L.append(f"  added:   {r.added}")
     if r.removed:
         L.append(f"  removed: {r.removed}")
+    if r.moved:
+        L.append("  moved:   " + ", ".join(f"{ia} -> {ib}" for ia, ib in r.moved))
     L.append("")
 
     if r.changed:
         L.append(f"CHANGED EPISODES ({len(r.changed)}):")
         for d in r.changed:
-            L.append(f"  [ep {d.index}] length {d.old_length} -> {d.new_length} "
+            was = (f" (was {d.old_index})"
+                   if d.old_index is not None and d.old_index != d.index else "")
+            L.append(f"  [ep {d.index}{was}] length {d.old_length} -> {d.new_length} "
                      f"({d.d_length:+d} frames)")
             if d.tasks_changed:
                 L.append(f"           tasks: {d.old_tasks} -> {d.new_tasks}")

@@ -19,6 +19,7 @@ Videos are never read — everything here is metadata + data parquet only.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -48,6 +49,8 @@ class EpisodeInfo:
     stats: dict = field(default_factory=dict)
     idle_ratio: float | None = None
     spike_count: int | None = None
+    # sha1 of the raw action + observation.state frames (content_hash=True)
+    content_hash: str | None = None
 
     def stat(self, feature: str, name: str) -> list | None:
         return self.stats.get(feature, {}).get(name)
@@ -367,6 +370,24 @@ def _verify_stats(ds: DatasetView, frames: dict, features: list[str]) -> None:
     ds.stats_verified = True
 
 
+HASHED_FEATURES = ("action", "observation.state")
+
+
+def _add_content_hashes(ds: DatasetView, frames: dict) -> None:
+    """Hash each episode's raw frames so it can be matched across revisions."""
+    for idx, cols in frames.items():
+        ep = ds.episodes.get(idx)
+        if ep is None:
+            continue
+        h = hashlib.sha1()
+        for feat in HASHED_FEATURES:
+            if feat in cols:
+                x = np.ascontiguousarray(cols[feat])
+                h.update(f"{feat}|{x.dtype.str}|{x.shape}|".encode())
+                h.update(x.tobytes())
+        ep.content_hash = h.hexdigest()
+
+
 def _add_quality(ds: DatasetView, frames: dict) -> None:
     """Idle-ratio / spike-count per episode from its action frames."""
     for idx, cols in frames.items():
@@ -379,15 +400,17 @@ def _add_quality(ds: DatasetView, frames: dict) -> None:
 
 def load_dataset(ref: str, cache_dir: str | Path | None = None,
                  with_quality: bool = True,
-                 verify_stats: bool = False) -> DatasetView:
+                 verify_stats: bool = False,
+                 content_hash: bool = False) -> DatasetView:
     """Load a dataset reference into a DatasetView (v2.1 or v3.0).
 
     Metadata is always read. Frame data under data/ is read (and, for
     Hugging Face refs, downloaded) only when something needs it:
-    with_quality (idle/spike heuristics) or verify_stats (check the
-    per-episode metadata stats against the frames).
+    with_quality (idle/spike heuristics), verify_stats (check the
+    per-episode metadata stats against the frames) or content_hash (hash
+    each episode's frames for diff_datasets(match_by="content")).
     """
-    read_data = with_quality or verify_stats
+    read_data = with_quality or verify_stats or content_hash
     root = resolve_ref(ref, cache_dir, with_data=read_data)
     info_path = root / "meta" / "info.json"
     if not info_path.exists():
@@ -403,10 +426,17 @@ def load_dataset(ref: str, cache_dir: str | Path | None = None,
         raise ValueError(f"unsupported LeRobot codebase_version: {version!r}")
     if read_data:
         verify = _verifiable_features(ds) if verify_stats else []
-        columns = sorted(set(verify) | ({"action"} if with_quality else set()))
+        columns = set(verify)
+        if with_quality:
+            columns.add("action")
+        if content_hash:
+            columns.update(HASHED_FEATURES)
+        columns = sorted(columns)
         frames = _scan_frames(_data_files(ds), columns)
         if with_quality:
             _add_quality(ds, frames)
         if verify_stats:
             _verify_stats(ds, frames, verify)
+        if content_hash:
+            _add_content_hashes(ds, frames)
     return ds
