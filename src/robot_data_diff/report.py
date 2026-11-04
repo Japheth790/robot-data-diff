@@ -140,18 +140,26 @@ def render_text(r: DiffResult) -> str:
 def render_html(r: DiffResult) -> str:
     e = html.escape
 
+    def num(v, fmt):
+        return "n/a" if v is None else format(v, fmt)
+
     def changed_rows():
         rows = []
         for d in r.changed:
+            was = (f" (was {d.old_index})"
+                   if d.old_index is not None and d.old_index != d.index else "")
+            changes = [f"tasks: {e(str(d.old_tasks))} &rarr; {e(str(d.new_tasks))}"
+                       for _ in [0] if d.tasks_changed]
+            changes += [f"<code>&Delta;{e(label[2:-1])}</code> {e(val)}"
+                        for label, val in _delta_lines(d)]
             rows.append(
-                f"<tr><td>{d.index}</td><td>{d.old_length} &rarr; {d.new_length} "
+                f"<tr><td>{d.index}{was}</td><td>{d.old_length} &rarr; {d.new_length} "
                 f"({d.d_length:+d})</td>"
-                f"<td>{_fmt_vec(d.d_action_min)}</td>"
-                f"<td>{_fmt_vec(d.d_action_max)}</td>"
-                f"<td>{d.d_idle_ratio if d.d_idle_ratio is not None else 'n/a'}</td>"
-                f"<td>{d.d_spike_count if d.d_spike_count is not None else 'n/a'}</td></tr>"
+                f"<td>{'<br>'.join(changes) or '&mdash;'}</td>"
+                f"<td>{num(d.d_idle_ratio, '+.4f')}</td>"
+                f"<td>{num(d.d_spike_count, '+d')}</td></tr>"
             )
-        return "\n".join(rows) or '<tr><td colspan="6">none</td></tr>'
+        return "\n".join(rows) or '<tr><td colspan="5">none</td></tr>'
 
     def task_rows():
         rows = []
@@ -160,8 +168,25 @@ def render_html(r: DiffResult) -> str:
             rows.append(f'<tr{cls}><td>{e(t[:80])}</td><td>{ca}</td><td>{cb}</td></tr>')
         return "\n".join(rows)
 
+    def side(name, version, n, fps, robot):
+        extra = "".join(f", {x}" for x in (f"{fps} fps" if fps else None,
+                                           f"robot {e(str(robot))}" if robot else None) if x)
+        return f"{e(name)} <code>{e(version)}</code> ({n} episodes{extra})"
+
     ckpt = f"<p><b>Policy checkpoint:</b> {e(r.checkpoint)}</p>" if r.checkpoint else ""
-    qual = ""
+    moved = f", &gt;{len(r.moved)} moved" if r.match_by == "content" else ""
+    moved_list = ("<br>Moved: <code>" + e(", ".join(f"{a} -> {b}" for a, b in r.moved))
+                  + "</code>") if r.moved else ""
+    dataset = ("<ul>" + "".join(f"<li><b>{e(n)}</b>: {e(str(va))} &rarr; {e(str(vb))}</li>"
+                                for n, va, vb in r.dataset_changes) + "</ul>"
+               if r.dataset_changes else "<p>Same fps, robot_type and codebase_version.</p>")
+    stale = ""
+    if r.a_stats_mismatches or r.b_stats_mismatches:
+        stale = ("<h2>Stale metadata</h2><p>Per-episode stats disagree with data/:</p><ul>"
+                 + "".join(f"<li>{e(line)}</li>" for line in mismatch_lines(r)) + "</ul>")
+    elif r.a_stats_verified or r.b_stats_verified:
+        stale = "<h2>Stale metadata</h2><p>Stats verified: metadata matches data/.</p>"
+    qual = "<p>Not computed (--no-quality).</p>"
     if r.mean_idle_a is not None:
         qual = (f"<p>Mean idle-frame ratio: {r.mean_idle_a:.4f} &rarr; "
                 f"{r.mean_idle_b:.4f} ({r.mean_idle_b - r.mean_idle_a:+.4f})<br>"
@@ -179,24 +204,28 @@ code {{ background: #f4f4f4; padding: 1px 5px; border-radius: 3px; }}
 h1 {{ font-size: 1.4em; }} h2 {{ font-size: 1.1em; margin-top: 1.6em; }}
 </style></head><body>
 <h1>robot-data-diff report</h1>
-<p><b>A:</b> {e(r.a_name)} <code>{e(r.a_version)}</code> ({r.a_episodes} episodes)<br>
-<b>B:</b> {e(r.b_name)} <code>{e(r.b_version)}</code> ({r.b_episodes} episodes)</p>
+<p><b>A:</b> {side(r.a_name, r.a_version, r.a_episodes, r.a_fps, r.a_robot_type)}<br>
+<b>B:</b> {side(r.b_name, r.b_version, r.b_episodes, r.b_fps, r.b_robot_type)}</p>
 {ckpt}
 <h2>Episode inventory</h2>
 <p>{r.a_episodes} &rarr; {r.b_episodes} episodes &mdash;
 +{len(r.added)} added, &minus;{len(r.removed)} removed,
-~{len(r.changed)} changed, ={r.unchanged} unchanged</p>
-<p>Added: <code>{e(str(r.added))}</code><br>Removed: <code>{e(str(r.removed))}</code></p>
+~{len(r.changed)} changed{moved}, ={r.unchanged} unchanged</p>
+<p>Added: <code>{e(str(r.added))}</code><br>
+Removed: <code>{e(str(r.removed))}</code>{moved_list}</p>
 <h2>Changed episodes</h2>
-<table><tr><th>ep</th><th>length</th><th>&Delta;action_min</th>
-<th>&Delta;action_max</th><th>&Delta;idle</th><th>&Delta;spikes</th></tr>
+<table><tr><th>ep</th><th>length</th><th>changes (B &minus; A)</th>
+<th>&Delta;idle</th><th>&Delta;spikes</th></tr>
 {changed_rows()}</table>
 <h2>Task inventory</h2>
 <table><tr><th>task</th><th>A</th><th>B</th></tr>{task_rows()}</table>
+<h2>Dataset-level changes</h2>
+{dataset}
 <h2>Schema drift</h2>
 <p>Added: <code>{e(str(r.features_added))}</code><br>
 Removed: <code>{e(str(r.features_removed))}</code><br>
 Changed: <code>{e(str(r.features_changed))}</code></p>
+{stale}
 <h2>Quality summary</h2>
 {qual}
 </body></html>
