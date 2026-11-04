@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import html
 
-from .differ import DiffResult, EpisodeDelta
+from .differ import DiffResult
 
 
 def _fmt_vec(v, nd=4):

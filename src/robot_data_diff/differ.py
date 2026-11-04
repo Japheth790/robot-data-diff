@@ -51,7 +51,7 @@ class DiffResult:
 def _sub(a, b):
     if a is None or b is None or len(a) != len(b):
         return None
-    return [round(float(x) - float(y), 6) for x, y in zip(b, a)]
+    return [round(float(x) - float(y), 6) for x, y in zip(b, a, strict=True)]
 
 
 def diff_datasets(a: DatasetView, b: DatasetView,

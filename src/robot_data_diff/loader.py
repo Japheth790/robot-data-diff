@@ -77,7 +77,9 @@ def _namespaced_cache_dir(cache_dir: str | Path, repo_id: str,
     and produces wrong diffs. Namespacing keeps every download isolated while
     still reusing the cache when the same ref is diffed again.
     """
-    safe = lambda s: re.sub(r"[^A-Za-z0-9._-]", "_", s)
+    def safe(s: str) -> str:
+        return re.sub(r"[^A-Za-z0-9._-]", "_", s)
+
     return (Path(cache_dir) / safe(repo_id.replace("/", "__"))
             / safe(revision or "main"))
 
@@ -215,10 +217,10 @@ def _load_v2(root: Path, name: str) -> DatasetView:
             if ep is None:
                 continue
             feats = rec.get("stats") or rec.get("features") or rec
-            for feat_key, target, attr in (
-                ("action", "action", None),
-                ("observation.state", "state", None),
-                ("observation_state", "state", None),
+            for feat_key, target in (
+                ("action", "action"),
+                ("observation.state", "state"),
+                ("observation_state", "state"),
             ):
                 f = feats.get(feat_key)
                 if isinstance(f, dict):
