@@ -50,3 +50,32 @@ def test_shuffled_rows_and_episode_split_across_files(tmp_path, episodes):
     for i, (idle, spikes) in expected.items():
         assert ds.episodes[i].idle_ratio == idle
         assert ds.episodes[i].spike_count == spikes
+
+
+def test_no_quality_reads_no_data_files(write, episodes, monkeypatch):
+    import robot_data_diff.loader as loader
+
+    def boom(*a, **k):
+        raise AssertionError("data files were read")
+
+    root = write("a", episodes)
+    monkeypatch.setattr(loader, "_scan_frames", boom)
+    ds = load_dataset(str(root), with_quality=False)
+    assert len(ds.episodes) == 4
+    assert all(e.idle_ratio is None for e in ds.episodes.values())
+
+
+def test_no_quality_skips_hf_data_download(tmp_path, episodes, monkeypatch):
+    import huggingface_hub
+
+    root = write_v30(tmp_path / "ds", episodes)
+    calls = []
+
+    def fake_snapshot_download(repo_id, **kw):
+        calls.append(kw["allow_patterns"])
+        return str(root)
+
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", fake_snapshot_download)
+    load_dataset("org/repo", with_quality=False)
+    load_dataset("org/repo@v1")
+    assert calls == [["meta/**"], ["meta/**", "data/**"]]

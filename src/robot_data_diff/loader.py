@@ -113,7 +113,8 @@ def _namespaced_cache_dir(cache_dir: str | Path, repo_id: str,
             / safe(revision or "main"))
 
 
-def resolve_ref(ref: str, cache_dir: str | Path | None = None) -> Path:
+def resolve_ref(ref: str, cache_dir: str | Path | None = None,
+                with_data: bool = True) -> Path:
     """Turn a dataset reference into a local directory Path.
 
     Accepts a local path, or a Hugging Face dataset id like
@@ -140,7 +141,7 @@ def resolve_ref(ref: str, cache_dir: str | Path | None = None) -> Path:
         repo_id,
         repo_type="dataset",
         revision=revision or None,
-        allow_patterns=["meta/**", "data/**"],
+        allow_patterns=["meta/**", "data/**"] if with_data else ["meta/**"],
         local_dir=local_dir,
     )
     return Path(local)
@@ -199,7 +200,6 @@ def _load_v3(root: Path, name: str) -> DatasetView:
     ds = DatasetView(name=name, version=str(info.get("codebase_version", "")),
                      fps=fps, features=features, episodes=episodes, root=root,
                      robot_type=info.get("robot_type"))
-    _add_quality(ds, _scan_frames(_data_files(ds), ["action"]))
     return ds
 
 
@@ -249,7 +249,6 @@ def _load_v2(root: Path, name: str) -> DatasetView:
     ds = DatasetView(name=name, version=str(info.get("codebase_version", "")),
                      fps=fps, features=features, episodes=episodes, root=root,
                      robot_type=info.get("robot_type"))
-    _add_quality(ds, _scan_frames(_data_files(ds), ["action"]))
     return ds
 
 
@@ -345,8 +344,13 @@ def _add_quality(ds: DatasetView, frames: dict) -> None:
 
 def load_dataset(ref: str, cache_dir: str | Path | None = None,
                  with_quality: bool = True) -> DatasetView:
-    """Load a dataset reference into a DatasetView (v2.1 or v3.0)."""
-    root = resolve_ref(ref, cache_dir)
+    """Load a dataset reference into a DatasetView (v2.1 or v3.0).
+
+    Metadata is always read. Frame data under data/ is read (and, for
+    Hugging Face refs, downloaded) only when with_quality needs it.
+    """
+    read_data = with_quality
+    root = resolve_ref(ref, cache_dir, with_data=read_data)
     info_path = root / "meta" / "info.json"
     if not info_path.exists():
         raise ValueError(f"{root} does not look like a LeRobot dataset "
@@ -359,7 +363,8 @@ def load_dataset(ref: str, cache_dir: str | Path | None = None,
         ds = _load_v2(root, name)
     else:
         raise ValueError(f"unsupported LeRobot codebase_version: {version!r}")
-    if not with_quality:
-        for ep in ds.episodes.values():
-            ep.idle_ratio, ep.spike_count = None, None
+    if read_data:
+        frames = _scan_frames(_data_files(ds), ["action"])
+        if with_quality:
+            _add_quality(ds, frames)
     return ds
