@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "robot-data-diff"
-version = "0.1.0"
+version = "0.2.0"
 description = "Episode-aware diff for LeRobot robot-training datasets: what changed in the data since the last good run?"
 readme = "README.md"
 requires-python = ">=3.10"
