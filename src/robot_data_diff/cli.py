@@ -9,6 +9,7 @@ from pathlib import Path
 
 from . import __version__
 from .differ import diff_datasets
+from .gate import evaluate, parse_fail_on
 from .loader import load_dataset
 from .report import render_html, render_text
 
@@ -42,6 +43,10 @@ def build_parser() -> argparse.ArgumentParser:
                    help="pair episodes by episode_index (default) or by a hash "
                         "of their action/state frames, which reports reordered "
                         "episodes as moved instead of added + removed")
+    d.add_argument("--fail-on", metavar="RULES",
+                   help="exit 1 if any rule hits, e.g. "
+                        "'schema,fps,removed,changed>5%%,idle-increase>0.05' "
+                        "(see README: Use in CI)")
     d.add_argument("--verbose", action="store_true",
                    help="show full tracebacks on errors")
     d.add_argument("--cache-dir", metavar="DIR", default=None,
@@ -50,6 +55,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def cmd_diff(args) -> int:
+    rules = parse_fail_on(args.fail_on) if args.fail_on else []
     print("loading A ...", file=sys.stderr)
     a = load_dataset(args.dataset_a, cache_dir=args.cache_dir,
                      with_quality=not args.no_quality,
@@ -70,7 +76,11 @@ def cmd_diff(args) -> int:
                   "episode(s); metadata may be stale", file=sys.stderr)
 
     result = diff_datasets(a, b, checkpoint=args.checkpoint, match_by=args.match_by)
-    as_json = json.dumps(result.to_dict(), indent=2, allow_nan=False)
+    hits = evaluate(rules, result) if rules else []
+    data = result.to_dict()
+    if rules:
+        data["fail_on"] = {"rules": [r.text for r in rules], "failed": hits}
+    as_json = json.dumps(data, indent=2, allow_nan=False)
     print(as_json if args.format == "json" else render_text(result))
     for path, render, what in ((args.html, render_html, "HTML report"),
                                (args.json_out, lambda _: as_json, "JSON result")):
@@ -79,11 +89,14 @@ def cmd_diff(args) -> int:
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text(render(result) + "\n", encoding="utf-8")
             print(f"{what} written to {path}", file=sys.stderr)
-    return 0
+    for hit in hits:
+        print(f"fail-on: {hit}", file=sys.stderr)
+    return 1 if hits else 0
 
 
 def main(argv=None) -> int:
-    """Exit codes: 0 OK, 2 error (bad input, unreadable dataset, ...)."""
+    """Exit codes: 0 OK, 1 a --fail-on rule hit, 2 error (bad input,
+    unreadable dataset, ...)."""
     args = build_parser().parse_args(argv)
     try:
         if args.cmd == "diff":
