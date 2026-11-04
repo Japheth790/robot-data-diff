@@ -26,6 +26,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
+import pyarrow as pa
+import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
 from .stats import STAT_KEYS, action_quality
@@ -177,10 +179,11 @@ def _load_v3(root: Path, name: str) -> DatasetView:
         raise ValueError(f"no episode metadata found under {root}/meta/episodes")
     episodes: dict[int, EpisodeInfo] = {}
     for f in ep_files:
-        names = pq.read_schema(f).names
+        pf = pq.ParquetFile(f)
+        names = pf.schema_arrow.names
         stat_cols = [c for c in names if c.startswith("stats/") and c.count("/") >= 2]
         base = [c for c in ("episode_index", "length", "tasks") if c in names]
-        cols = pq.read_table(f, columns=base + stat_cols).to_pydict()
+        cols = pf.read(columns=base + stat_cols).to_pydict()
         n = len(cols["episode_index"])
         parsed = [(c, *c[len("stats/"):].rsplit("/", 1)) for c in stat_cols]
         for i in range(n):
@@ -196,28 +199,8 @@ def _load_v3(root: Path, name: str) -> DatasetView:
     ds = DatasetView(name=name, version=str(info.get("codebase_version", "")),
                      fps=fps, features=features, episodes=episodes, root=root,
                      robot_type=info.get("robot_type"))
-    _add_quality_v3(ds)
+    _add_quality(ds, _scan_frames(_data_files(ds), ["action"]))
     return ds
-
-
-def _add_quality_v3(ds: DatasetView):
-    """Compute idle-ratio / spike-count per episode from v3 data chunks."""
-    data_files = sorted((ds.root / "data").rglob("*.parquet"))
-    if not data_files:
-        return
-    for f in data_files:
-        try:
-            table = pq.read_table(f, columns=["episode_index", "action"])
-        except Exception:
-            continue  # chunk without action column; skip
-        df = table.to_pandas()
-        for ep_idx, grp in df.groupby("episode_index"):
-            ep = ds.episodes.get(int(ep_idx))
-            if ep is None:
-                continue
-            acts = np.stack([np.asarray(a, dtype=np.float64).ravel()
-                             for a in grp["action"].to_numpy()])
-            ep.idle_ratio, ep.spike_count = action_quality(acts)
 
 
 # ---------------------------------------------------------------------------
@@ -266,27 +249,96 @@ def _load_v2(root: Path, name: str) -> DatasetView:
     ds = DatasetView(name=name, version=str(info.get("codebase_version", "")),
                      fps=fps, features=features, episodes=episodes, root=root,
                      robot_type=info.get("robot_type"))
-    _add_quality_v2(ds)
+    _add_quality(ds, _scan_frames(_data_files(ds), ["action"]))
     return ds
 
 
-def _add_quality_v2(ds: DatasetView):
-    """Per-episode quality from v2 per-episode data files."""
-    for f in sorted((ds.root / "data").rglob("episode_*.parquet")):
-        try:
-            table = pq.read_table(f, columns=["action"])
-        except Exception:
-            continue
-        acts = np.stack([np.asarray(a, dtype=np.float64).ravel()
-                         for a in table.column("action").to_pylist()])
-        # episode index from filename episode_000123.parquet
-        try:
-            ep_idx = int(f.stem.split("_")[-1])
-        except ValueError:
-            continue
-        ep = ds.episodes.get(ep_idx)
-        if ep is not None:
-            ep.idle_ratio, ep.spike_count = action_quality(acts)
+# ---------------------------------------------------------------------------
+# frame data (data/**/*.parquet), read column-wise with pyarrow + numpy
+# ---------------------------------------------------------------------------
+
+def _data_files(ds: DatasetView) -> list[Path]:
+    pattern = "episode_*.parquet" if ds.version.startswith("v2") else "*.parquet"
+    return sorted((ds.root / "data").rglob(pattern))
+
+
+def _v2_file_episode(f: Path) -> int | None:
+    """Episode index from a v2 file name like episode_000123.parquet."""
+    if not f.stem.startswith("episode_"):
+        return None
+    try:
+        return int(f.stem.split("_")[-1])
+    except ValueError:
+        return None
+
+
+def _is_numeric(t: pa.DataType) -> bool:
+    return pa.types.is_integer(t) or pa.types.is_floating(t) or pa.types.is_boolean(t)
+
+
+def _vector_column(col: pa.ChunkedArray) -> np.ndarray:
+    """(N, D) array (native dtype) from a list, fixed-size-list or scalar column."""
+    arr = col.combine_chunks()
+    n = len(arr)
+    if _is_numeric(arr.type):
+        return arr.to_numpy(zero_copy_only=False).reshape(n, 1)
+    t = arr.type
+    if (pa.types.is_list(t) or pa.types.is_large_list(t)
+            or pa.types.is_fixed_size_list(t)) and arr.null_count == 0 and n:
+        flat = pc.list_flatten(arr)
+        if _is_numeric(flat.type) and len(flat) % n == 0:
+            lens = pc.list_value_length(arr).to_numpy(zero_copy_only=False)
+            if (lens == len(flat) // n).all():
+                return flat.to_numpy(zero_copy_only=False).reshape(n, -1)
+    # ragged, nested or null-containing rows: slow but always correct
+    return np.stack([np.asarray(v, dtype=np.float64).ravel() for v in arr.to_pylist()])
+
+
+def _scan_frames(files: list[Path], columns: list[str]) -> dict[int, dict[str, np.ndarray]]:
+    """Read `columns` from data files, grouped as {episode: {column: (T, D) array}}.
+
+    Only the requested columns (plus episode_index when needed) are read.
+    Frames keep their on-disk order; an episode split across files is joined
+    in file order.
+    """
+    parts: dict[int, dict[str, list]] = {}
+    for f in files:
+        file_ep = _v2_file_episode(f)
+        # an open OSFile skips pyarrow's per-path filesystem resolution, which
+        # dominates when v2.1 datasets have thousands of small files
+        with pa.OSFile(str(f)) as fh:
+            pf = pq.ParquetFile(fh)
+            names = set(pf.schema_arrow.names)
+            cols = [c for c in columns if c in names]
+            if not cols or (file_ep is None and "episode_index" not in names):
+                continue
+            table = pf.read(columns=cols + (["episode_index"] if file_ep is None else []))
+        arrays = {c: _vector_column(table.column(c)) for c in cols}
+        if file_ep is not None:
+            groups = [(file_ep, slice(None))]
+        else:
+            ep = table.column("episode_index").to_numpy()
+            if len(ep) and (np.diff(ep) < 0).any():
+                order = np.argsort(ep, kind="stable")
+                ep = ep[order]
+                arrays = {c: a[order] for c, a in arrays.items()}
+            starts = np.flatnonzero(np.r_[True, ep[1:] != ep[:-1]]) if len(ep) else []
+            ends = list(starts[1:]) + [len(ep)]
+            groups = [(int(ep[s]), slice(s, e)) for s, e in zip(starts, ends, strict=True)]
+        for idx, sl in groups:
+            d = parts.setdefault(idx, {})
+            for c, a in arrays.items():
+                d.setdefault(c, []).append(a[sl])
+    return {idx: {c: v[0] if len(v) == 1 else np.concatenate(v) for c, v in d.items()}
+            for idx, d in parts.items()}
+
+
+def _add_quality(ds: DatasetView, frames: dict) -> None:
+    """Idle-ratio / spike-count per episode from its action frames."""
+    for idx, cols in frames.items():
+        ep = ds.episodes.get(idx)
+        if ep is not None and "action" in cols:
+            ep.idle_ratio, ep.spike_count = action_quality(cols["action"])
 
 
 # ---------------------------------------------------------------------------
