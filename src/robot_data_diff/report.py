@@ -73,6 +73,15 @@ def render_text(r: DiffResult) -> str:
             L.append(f"{mark} {t[:60]:62s} {ca:5d} -> {cb:5d}")
         L.append("")
 
+    if r.dataset_changes:
+        L.append("DATASET-LEVEL CHANGES:")
+        for name, va, vb in r.dataset_changes:
+            L.append(f"  ! {name}: {va} -> {vb}")
+        L.append("")
+    else:
+        L.append("Dataset-level: same fps, robot_type and codebase_version.")
+        L.append("")
+
     if r.features_added or r.features_removed or r.features_changed:
         L.append("SCHEMA DRIFT:")
         for f in r.features_added:

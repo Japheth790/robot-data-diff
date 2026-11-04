@@ -79,6 +79,7 @@ class DatasetView:
     features: dict  # feature name -> {"dtype": str, "shape": list}
     episodes: dict  # episode_index -> EpisodeInfo
     root: Path
+    robot_type: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -192,8 +193,9 @@ def _load_v3(root: Path, name: str) -> DatasetView:
             for col, feat, stat in parsed:
                 _put_stat(ep.stats, feat, stat, cols[col][i])
             episodes[idx] = ep
-    ds = DatasetView(name=name, version="v3.0", fps=fps, features=features,
-                     episodes=episodes, root=root)
+    ds = DatasetView(name=name, version=str(info.get("codebase_version", "")),
+                     fps=fps, features=features, episodes=episodes, root=root,
+                     robot_type=info.get("robot_type"))
     _add_quality_v3(ds)
     return ds
 
@@ -261,8 +263,9 @@ def _load_v2(root: Path, name: str) -> DatasetView:
                     for stat, value in fstats.items():
                         _put_stat(ep.stats, feat, stat, value)
 
-    ds = DatasetView(name=name, version="v2.1", fps=fps, features=features,
-                     episodes=episodes, root=root)
+    ds = DatasetView(name=name, version=str(info.get("codebase_version", "")),
+                     fps=fps, features=features, episodes=episodes, root=root,
+                     robot_type=info.get("robot_type"))
     _add_quality_v2(ds)
     return ds
 

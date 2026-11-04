@@ -42,6 +42,10 @@ class DiffResult:
     changed: list[EpisodeDelta] = field(default_factory=list)
     unchanged: int = 0
     task_counts: dict = field(default_factory=dict)  # task -> (count_a, count_b)
+    # (field, value in A, value in B) for fps / robot_type / codebase_version
+    dataset_changes: list = field(default_factory=list)
+    a_robot_type: str | None = None
+    b_robot_type: str | None = None
     features_added: list = field(default_factory=list)
     features_removed: list = field(default_factory=list)
     features_changed: list = field(default_factory=list)
@@ -82,8 +86,14 @@ def diff_datasets(a: DatasetView, b: DatasetView,
         a_version=a.version, b_version=b.version,
         a_fps=a.fps, b_fps=b.fps,
         a_episodes=len(a.episodes), b_episodes=len(b.episodes),
+        a_robot_type=a.robot_type, b_robot_type=b.robot_type,
         checkpoint=checkpoint,
     )
+    for name, va, vb in (("fps", a.fps, b.fps),
+                         ("robot_type", a.robot_type, b.robot_type),
+                         ("codebase_version", a.version, b.version)):
+        if va != vb:
+            res.dataset_changes.append((name, va, vb))
     ai, bi = set(a.episodes), set(b.episodes)
     res.added = sorted(bi - ai)
     res.removed = sorted(ai - bi)
