@@ -5,6 +5,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from . import __version__
 from .differ import diff_datasets
 from .loader import load_dataset
 from .report import render_html, render_text
@@ -16,6 +17,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Episode-aware diff for LeRobot robot-training datasets. "
                     "Answers: what changed in the data since the last good run?",
     )
+    p.add_argument("--version", action="version",
+                   version=f"%(prog)s {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
     d = sub.add_parser("diff", help="diff two dataset revisions")
     d.add_argument("dataset_a", help="local path or HF id (org/repo[@rev])")
