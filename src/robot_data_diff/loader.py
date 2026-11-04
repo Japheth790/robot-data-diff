@@ -60,8 +60,10 @@ class DatasetView:
 # ---------------------------------------------------------------------------
 
 def _strip_no_proxy():
-    # The sandbox proxy env breaks httpx2's no_proxy parsing (IPv6 entries);
-    # the egress proxy handles everything, so drop no_proxy for HF calls.
+    # Opt-in workaround: some proxy setups put IPv6 entries in no_proxy that
+    # httpx fails to parse. Only touch the environment when asked to.
+    if os.environ.get("RDD_STRIP_NO_PROXY") != "1":
+        return
     for k in ("no_proxy", "NO_PROXY"):
         os.environ.pop(k, None)
 

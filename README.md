@@ -18,14 +18,10 @@ From source (for contributors):
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -e .
+pip install -e ".[dev]"
 ```
 
 Dependencies (all free): `pyarrow`, `pandas`, `numpy`, `huggingface_hub`.
-
-> Note: this sandbox's egress proxy breaks `httpx`'s `no_proxy` parsing
-> (IPv6 entries). The tool strips `no_proxy`/`NO_PROXY` for its own
-> Hugging Face calls; your shell is untouched.
 
 ## Usage
 
