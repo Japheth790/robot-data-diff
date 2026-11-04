@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .loader import DatasetView
-from .stats import fingerprint
+from .stats import STAT_KEYS, fingerprint, rounded
 
 
 @dataclass
@@ -16,6 +16,10 @@ class EpisodeDelta:
     tasks_changed: bool
     old_tasks: list = field(default_factory=list)
     new_tasks: list = field(default_factory=list)
+    # feature -> {stat: per-dim new - old}; only stats that changed are kept.
+    # A value of None means the stat can't be subtracted (shape changed, or
+    # missing on one side).
+    feature_deltas: dict = field(default_factory=dict)
     d_action_min: list | None = None   # per-dim new - old
     d_action_max: list | None = None
     d_action_mean: list | None = None
@@ -54,6 +58,23 @@ def _sub(a, b):
     return [round(float(x) - float(y), 6) for x, y in zip(b, a, strict=True)]
 
 
+def _stats_features(ds: DatasetView) -> set:
+    return {f for ep in ds.episodes.values() for f in ep.stats}
+
+
+def _feature_deltas(ea, eb, features) -> dict:
+    out = {}
+    for f in features:
+        fd = {}
+        for k in STAT_KEYS:
+            va, vb = ea.stat(f, k), eb.stat(f, k)
+            if rounded(va) != rounded(vb):
+                fd[k] = _sub(va, vb)
+        if fd:
+            out[f] = fd
+    return out
+
+
 def diff_datasets(a: DatasetView, b: DatasetView,
                   checkpoint: str | None = None) -> DiffResult:
     res = DiffResult(
@@ -67,9 +88,12 @@ def diff_datasets(a: DatasetView, b: DatasetView,
     res.added = sorted(bi - ai)
     res.removed = sorted(ai - bi)
 
+    # only compare per-feature stats that both revisions have
+    common = sorted(_stats_features(a) & _stats_features(b))
+
     for idx in sorted(ai & bi):
         ea, eb = a.episodes[idx], b.episodes[idx]
-        if fingerprint(ea) == fingerprint(eb):
+        if fingerprint(ea, common) == fingerprint(eb, common):
             res.unchanged += 1
             continue
         res.changed.append(EpisodeDelta(
@@ -78,6 +102,7 @@ def diff_datasets(a: DatasetView, b: DatasetView,
             d_length=eb.length - ea.length,
             tasks_changed=sorted(ea.tasks) != sorted(eb.tasks),
             old_tasks=ea.tasks, new_tasks=eb.tasks,
+            feature_deltas=_feature_deltas(ea, eb, common),
             d_action_min=_sub(ea.action_min, eb.action_min),
             d_action_max=_sub(ea.action_max, eb.action_max),
             d_action_mean=_sub(ea.action_mean, eb.action_mean),

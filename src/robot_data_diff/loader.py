@@ -28,7 +28,13 @@ from pathlib import Path
 import numpy as np
 import pyarrow.parquet as pq
 
-from .stats import action_quality
+from .stats import STAT_KEYS, action_quality
+
+# Columns LeRobot adds to every dataset. Their stats describe position in the
+# dataset (e.g. the global frame `index` shifts when an earlier episode is
+# removed), not the recorded data, so they are left out of change detection.
+BOOKKEEPING_FEATURES = frozenset(
+    {"index", "episode_index", "frame_index", "timestamp", "task_index"})
 
 
 @dataclass
@@ -36,13 +42,33 @@ class EpisodeInfo:
     index: int
     length: int
     tasks: list = field(default_factory=list)
-    action_min: list | None = None
-    action_max: list | None = None
-    action_mean: list | None = None
-    state_min: list | None = None
-    state_max: list | None = None
+    # per-feature stats from the dataset metadata: feature -> {stat: [floats]}
+    stats: dict = field(default_factory=dict)
     idle_ratio: float | None = None
     spike_count: int | None = None
+
+    def stat(self, feature: str, name: str) -> list | None:
+        return self.stats.get(feature, {}).get(name)
+
+    @property
+    def action_min(self):
+        return self.stat("action", "min")
+
+    @property
+    def action_max(self):
+        return self.stat("action", "max")
+
+    @property
+    def action_mean(self):
+        return self.stat("action", "mean")
+
+    @property
+    def state_min(self):
+        return self.stat("observation.state", "min")
+
+    @property
+    def state_max(self):
+        return self.stat("observation.state", "max")
 
 
 @dataclass
@@ -120,7 +146,17 @@ def resolve_ref(ref: str, cache_dir: str | Path | None = None) -> Path:
 def _as_list(v):
     if v is None:
         return None
-    return [float(x) for x in np.asarray(v).ravel()]
+    return [float(x) for x in np.asarray(v, dtype=np.float64).ravel()]
+
+
+def _put_stat(stats: dict, feature: str, stat: str, value) -> None:
+    """Store one numeric stat if it is one we track; skip anything else."""
+    if feature in BOOKKEEPING_FEATURES or stat not in STAT_KEYS or value is None:
+        return
+    try:
+        stats.setdefault(feature, {})[stat] = _as_list(value)
+    except (TypeError, ValueError):
+        pass  # non-numeric stat; ignore
 
 
 # ---------------------------------------------------------------------------
@@ -140,20 +176,22 @@ def _load_v3(root: Path, name: str) -> DatasetView:
         raise ValueError(f"no episode metadata found under {root}/meta/episodes")
     episodes: dict[int, EpisodeInfo] = {}
     for f in ep_files:
-        table = pq.read_table(f).to_pandas()
-        for _, row in table.iterrows():
-            idx = int(row["episode_index"])
-            tasks = [str(t) for t in (row.get("tasks") or [])]
-            episodes[idx] = EpisodeInfo(
+        names = pq.read_schema(f).names
+        stat_cols = [c for c in names if c.startswith("stats/") and c.count("/") >= 2]
+        base = [c for c in ("episode_index", "length", "tasks") if c in names]
+        cols = pq.read_table(f, columns=base + stat_cols).to_pydict()
+        n = len(cols["episode_index"])
+        parsed = [(c, *c[len("stats/"):].rsplit("/", 1)) for c in stat_cols]
+        for i in range(n):
+            idx = int(cols["episode_index"][i])
+            ep = EpisodeInfo(
                 index=idx,
-                length=int(row["length"]),
-                tasks=tasks,
-                action_min=_as_list(row.get("stats/action/min")),
-                action_max=_as_list(row.get("stats/action/max")),
-                action_mean=_as_list(row.get("stats/action/mean")),
-                state_min=_as_list(row.get("stats/observation.state/min")),
-                state_max=_as_list(row.get("stats/observation.state/max")),
+                length=int(cols["length"][i]),
+                tasks=[str(t) for t in (cols.get("tasks", [None] * n)[i] or [])],
             )
+            for col, feat, stat in parsed:
+                _put_stat(ep.stats, feat, stat, cols[col][i])
+            episodes[idx] = ep
     ds = DatasetView(name=name, version="v3.0", fps=fps, features=features,
                      episodes=episodes, root=root)
     _add_quality_v3(ds)
@@ -216,21 +254,12 @@ def _load_v2(root: Path, name: str) -> DatasetView:
             ep = episodes.get(int(rec["episode_index"]))
             if ep is None:
                 continue
+            # real v2.1 nests under "stats"; accept older flat files too
             feats = rec.get("stats") or rec.get("features") or rec
-            for feat_key, target in (
-                ("action", "action"),
-                ("observation.state", "state"),
-                ("observation_state", "state"),
-            ):
-                f = feats.get(feat_key)
-                if isinstance(f, dict):
-                    if target == "action":
-                        ep.action_min = _as_list(f.get("min"))
-                        ep.action_max = _as_list(f.get("max"))
-                        ep.action_mean = _as_list(f.get("mean"))
-                    else:
-                        ep.state_min = _as_list(f.get("min"))
-                        ep.state_max = _as_list(f.get("max"))
+            for feat, fstats in feats.items():
+                if isinstance(fstats, dict):
+                    for stat, value in fstats.items():
+                        _put_stat(ep.stats, feat, stat, value)
 
     ds = DatasetView(name=name, version="v2.1", fps=fps, features=features,
                      episodes=episodes, root=root)

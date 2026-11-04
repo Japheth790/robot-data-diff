@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import numpy as np
 
+# per-feature stats compared between revisions
+STAT_KEYS = ("min", "max", "mean", "std")
+
 
 def action_quality(action: np.ndarray) -> tuple[float, int]:
     """Idle-frame ratio and action-spike count for one episode's actions.
@@ -33,21 +36,24 @@ def _r6(x) -> float:
     return round(float(x), 6)
 
 
-def fingerprint(ep) -> tuple:
+def rounded(vals) -> tuple | None:
+    """Stats vector rounded to 6 decimals, so float noise is not a change."""
+    return tuple(_r6(v) for v in vals) if vals is not None else None
+
+
+def fingerprint(ep, features=None) -> tuple:
     """Hashable summary of an episode used to detect 'changed' episodes.
 
     Two episodes with the same index but different fingerprints changed
-    between dataset revisions.
+    between dataset revisions. `features` restricts the per-feature stats
+    that are compared (the differ passes the features both sides have, so a
+    feature added to the whole dataset is schema drift, not 2000 changes).
     """
-    def rl(vals):
-        return tuple(_r6(v) for v in vals) if vals is not None else None
-
+    feats = sorted(ep.stats if features is None else features)
     return (
         ep.length,
         tuple(sorted(ep.tasks)),
-        rl(ep.action_min),
-        rl(ep.action_max),
-        rl(ep.action_mean),
+        tuple((f, k, rounded(ep.stat(f, k))) for f in feats for k in STAT_KEYS),
         round(ep.idle_ratio, 4) if ep.idle_ratio is not None else None,
         ep.spike_count,
     )

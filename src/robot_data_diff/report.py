@@ -3,13 +3,27 @@ from __future__ import annotations
 
 import html
 
-from .differ import DiffResult
+from .differ import DiffResult, EpisodeDelta
+
+MAX_DIMS = 12  # longer vectors are truncated in the reports
 
 
 def _fmt_vec(v, nd=4):
     if v is None:
         return "n/a"
-    return "[" + ", ".join(f"{x:+.{nd}f}" for x in v) + "]"
+    head = ", ".join(f"{x:+.{nd}f}" for x in v[:MAX_DIMS])
+    more = f", ... +{len(v) - MAX_DIMS} dims" if len(v) > MAX_DIMS else ""
+    return f"[{head}{more}]"
+
+
+def _delta_lines(d: EpisodeDelta) -> list[tuple[str, str]]:
+    """(label, formatted delta) for every per-feature stat that changed."""
+    out = []
+    for feat, fd in d.feature_deltas.items():
+        for stat, v in fd.items():
+            out.append((f"d({feat}_{stat})",
+                        _fmt_vec(v) if v is not None else "n/a (shape changed or missing)"))
+    return out
 
 
 def render_text(r: DiffResult) -> str:
@@ -41,12 +55,8 @@ def render_text(r: DiffResult) -> str:
                      f"({d.d_length:+d} frames)")
             if d.tasks_changed:
                 L.append(f"           tasks: {d.old_tasks} -> {d.new_tasks}")
-            if d.d_action_min is not None:
-                L.append(f"           d(action_min)  {_fmt_vec(d.d_action_min)}")
-            if d.d_action_max is not None:
-                L.append(f"           d(action_max)  {_fmt_vec(d.d_action_max)}")
-            if d.d_action_mean is not None:
-                L.append(f"           d(action_mean) {_fmt_vec(d.d_action_mean)}")
+            for label, val in _delta_lines(d):
+                L.append(f"           {label:<14} {val}")
             if d.d_idle_ratio is not None:
                 L.append(f"           d(idle_ratio)  {d.d_idle_ratio:+.4f}")
             if d.d_spike_count is not None:

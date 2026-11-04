@@ -28,7 +28,10 @@ BOOKKEEPING = ("timestamp", "frame_index", "episode_index", "index", "task_index
 
 def make_episodes(n: int = 4, T: int = 30, D: int = 2, seed: int = 0,
                   task: str = DEFAULT_TASK) -> list[dict]:
-    """Random-walk action/state episodes: [{"index", "action", "state", "tasks"}]."""
+    """Random-walk action/state episodes: [{"index", "action", "state", "tasks"}].
+
+    An optional "extra" dict {feature: (T, d) array} adds more numeric columns.
+    """
     rng = np.random.default_rng(seed)
     return [
         {
@@ -84,6 +87,8 @@ def _frames(episodes: list[dict], fps: float, task_ids: dict):
             "index": np.arange(gidx, gidx + T, dtype=np.int64),
             "task_index": np.full(T, task_ids[ep["tasks"][0]], dtype=np.int64),
         }
+        for k, v in ep.get("extra", {}).items():  # extra numeric columns
+            cols[k] = np.asarray(v, dtype=np.float32)
         gidx += T
         yield ep, cols
 
