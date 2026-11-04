@@ -49,6 +49,10 @@ class DiffResult:
     features_added: list = field(default_factory=list)
     features_removed: list = field(default_factory=list)
     features_changed: list = field(default_factory=list)
+    a_stats_verified: bool = False
+    b_stats_verified: bool = False
+    a_stats_mismatches: list = field(default_factory=list)
+    b_stats_mismatches: list = field(default_factory=list)
     mean_idle_a: float | None = None
     mean_idle_b: float | None = None
     spikes_a: int | None = None
@@ -87,6 +91,9 @@ def diff_datasets(a: DatasetView, b: DatasetView,
         a_fps=a.fps, b_fps=b.fps,
         a_episodes=len(a.episodes), b_episodes=len(b.episodes),
         a_robot_type=a.robot_type, b_robot_type=b.robot_type,
+        a_stats_verified=a.stats_verified, b_stats_verified=b.stats_verified,
+        a_stats_mismatches=list(a.stats_mismatches),
+        b_stats_mismatches=list(b.stats_mismatches),
         checkpoint=checkpoint,
     )
     for name, va, vb in (("fps", a.fps, b.fps),

@@ -82,6 +82,10 @@ class DatasetView:
     episodes: dict  # episode_index -> EpisodeInfo
     root: Path
     robot_type: str | None = None
+    # filled by load_dataset(verify_stats=True): metadata stats that disagree
+    # with a recomputation from data/ (stale meta after editing data)
+    stats_verified: bool = False
+    stats_mismatches: list = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -332,6 +336,37 @@ def _scan_frames(files: list[Path], columns: list[str]) -> dict[int, dict[str, n
             for idx, d in parts.items()}
 
 
+def _verifiable_features(ds: DatasetView) -> list[str]:
+    """Numeric (non-video, non-bookkeeping) features listed in info.json."""
+    return [f for f, spec in ds.features.items()
+            if f not in BOOKKEEPING_FEATURES
+            and spec["dtype"].startswith(("float", "int", "uint", "bool"))]
+
+
+def _verify_stats(ds: DatasetView, frames: dict, features: list[str]) -> None:
+    """Recompute length and min/max/mean from frames; record disagreements."""
+    def miss(idx, feat, stat, meta, data):
+        ds.stats_mismatches.append({"episode": idx, "feature": feat, "stat": stat,
+                                    "metadata": meta, "data": data})
+
+    for idx in sorted(ds.episodes):
+        ep, cols = ds.episodes[idx], frames.get(idx, {})
+        n = len(next(iter(cols.values()))) if cols else 0
+        if n != ep.length:
+            miss(idx, None, "length", ep.length, n)
+        for feat in features:
+            if feat not in cols:
+                continue
+            x = cols[feat].astype(np.float64)
+            for stat, val in (("min", x.min(0)), ("max", x.max(0)), ("mean", x.mean(0))):
+                meta = ep.stat(feat, stat)
+                if meta is None:
+                    continue
+                if len(meta) != val.size or not np.allclose(meta, val, rtol=1e-4, atol=1e-5):
+                    miss(idx, feat, stat, meta, _as_list(val))
+    ds.stats_verified = True
+
+
 def _add_quality(ds: DatasetView, frames: dict) -> None:
     """Idle-ratio / spike-count per episode from its action frames."""
     for idx, cols in frames.items():
@@ -343,13 +378,16 @@ def _add_quality(ds: DatasetView, frames: dict) -> None:
 # ---------------------------------------------------------------------------
 
 def load_dataset(ref: str, cache_dir: str | Path | None = None,
-                 with_quality: bool = True) -> DatasetView:
+                 with_quality: bool = True,
+                 verify_stats: bool = False) -> DatasetView:
     """Load a dataset reference into a DatasetView (v2.1 or v3.0).
 
     Metadata is always read. Frame data under data/ is read (and, for
-    Hugging Face refs, downloaded) only when with_quality needs it.
+    Hugging Face refs, downloaded) only when something needs it:
+    with_quality (idle/spike heuristics) or verify_stats (check the
+    per-episode metadata stats against the frames).
     """
-    read_data = with_quality
+    read_data = with_quality or verify_stats
     root = resolve_ref(ref, cache_dir, with_data=read_data)
     info_path = root / "meta" / "info.json"
     if not info_path.exists():
@@ -364,7 +402,11 @@ def load_dataset(ref: str, cache_dir: str | Path | None = None,
     else:
         raise ValueError(f"unsupported LeRobot codebase_version: {version!r}")
     if read_data:
-        frames = _scan_frames(_data_files(ds), ["action"])
+        verify = _verifiable_features(ds) if verify_stats else []
+        columns = sorted(set(verify) | ({"action"} if with_quality else set()))
+        frames = _scan_frames(_data_files(ds), columns)
         if with_quality:
             _add_quality(ds, frames)
+        if verify_stats:
+            _verify_stats(ds, frames, verify)
     return ds

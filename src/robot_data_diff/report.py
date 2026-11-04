@@ -26,6 +26,21 @@ def _delta_lines(d: EpisodeDelta) -> list[tuple[str, str]]:
     return out
 
 
+def mismatch_lines(r: DiffResult, limit: int = 20) -> list[str]:
+    """One line per stale-metadata finding, e.g. 'B: ep 1 action max: ...'."""
+    out = []
+    for side, ms in (("A", r.a_stats_mismatches), ("B", r.b_stats_mismatches)):
+        for m in ms[:limit]:
+            what = m["stat"] if m["feature"] is None else f"{m['feature']} {m['stat']}"
+            meta, data = m["metadata"], m["data"]
+            if isinstance(meta, list):
+                meta, data = _fmt_vec(meta), _fmt_vec(data)
+            out.append(f"{side}: ep {m['episode']} {what}: metadata {meta} vs data {data}")
+        if len(ms) > limit:
+            out.append(f"{side}: ... and {len(ms) - limit} more")
+    return out
+
+
 def render_text(r: DiffResult) -> str:
     L: list[str] = []
     L.append("=" * 72)
@@ -93,6 +108,16 @@ def render_text(r: DiffResult) -> str:
         L.append("")
     else:
         L.append("Schema: identical feature sets.")
+        L.append("")
+
+    if r.a_stats_mismatches or r.b_stats_mismatches:
+        L.append("STALE METADATA (per-episode stats disagree with data/):")
+        L.extend(f"  ! {line}" for line in mismatch_lines(r))
+        L.append("")
+    elif r.a_stats_verified or r.b_stats_verified:
+        sides = ", ".join(s for s, v in (("A", r.a_stats_verified),
+                                         ("B", r.b_stats_verified)) if v)
+        L.append(f"Stats verified: metadata matches data/ ({sides}).")
         L.append("")
 
     if r.mean_idle_a is not None:
