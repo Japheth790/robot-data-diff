@@ -26,6 +26,18 @@ def _delta_lines(d: EpisodeDelta) -> list[tuple[str, str]]:
     return out
 
 
+def _head(items: list, max_show: int | None) -> tuple[list, int]:
+    """First max_show items and how many were left out (None = show all)."""
+    if max_show is None or len(items) <= max_show:
+        return items, 0
+    return items[:max_show], len(items) - max_show
+
+
+def _index_list(items: list, max_show: int | None) -> str:
+    shown, more = _head(items, max_show)
+    return str(shown) + (f" ... and {more} more" if more else "")
+
+
 def mismatch_lines(r: DiffResult, limit: int = 20) -> list[str]:
     """One line per stale-metadata finding, e.g. 'B: ep 1 action max: ...'."""
     out = []
@@ -41,7 +53,8 @@ def mismatch_lines(r: DiffResult, limit: int = 20) -> list[str]:
     return out
 
 
-def render_text(r: DiffResult) -> str:
+def render_text(r: DiffResult, max_show: int | None = None) -> str:
+    """Plain-text report. max_show truncates long episode lists."""
     L: list[str] = []
     L.append("=" * 72)
     L.append("robot-data-diff  —  episode-aware dataset diff")
@@ -59,16 +72,19 @@ def render_text(r: DiffResult) -> str:
              f"(+{len(r.added)} added, -{len(r.removed)} removed, "
              f"~{len(r.changed)} changed{moved}, ={r.unchanged} unchanged)")
     if r.added:
-        L.append(f"  added:   {r.added}")
+        L.append(f"  added:   {_index_list(r.added, max_show)}")
     if r.removed:
-        L.append(f"  removed: {r.removed}")
+        L.append(f"  removed: {_index_list(r.removed, max_show)}")
     if r.moved:
-        L.append("  moved:   " + ", ".join(f"{ia} -> {ib}" for ia, ib in r.moved))
+        shown, more = _head(r.moved, max_show)
+        L.append("  moved:   " + ", ".join(f"{ia} -> {ib}" for ia, ib in shown)
+                 + (f" ... and {more} more" if more else ""))
     L.append("")
 
     if r.changed:
         L.append(f"CHANGED EPISODES ({len(r.changed)}):")
-        for d in r.changed:
+        shown, more = _head(r.changed, max_show)
+        for d in shown:
             was = (f" (was {d.old_index})"
                    if d.old_index is not None and d.old_index != d.index else "")
             L.append(f"  [ep {d.index}{was}] length {d.old_length} -> {d.new_length} "
@@ -81,6 +97,8 @@ def render_text(r: DiffResult) -> str:
                 L.append(f"           d(idle_ratio)  {d.d_idle_ratio:+.4f}")
             if d.d_spike_count is not None:
                 L.append(f"           d(spikes)      {d.d_spike_count:+d}")
+        if more:
+            L.append(f"  ... and {more} more changed episodes (raise --max-show to see them)")
         L.append("")
     else:
         L.append("No changed episodes (same index + identical stats).")
@@ -137,15 +155,17 @@ def render_text(r: DiffResult) -> str:
     return "\n".join(L)
 
 
-def render_html(r: DiffResult) -> str:
+def render_html(r: DiffResult, max_show: int | None = None) -> str:
+    """Self-contained HTML report. max_show truncates long episode lists."""
     e = html.escape
+    shown_changed, more_changed = _head(r.changed, max_show)
 
     def num(v, fmt):
         return "n/a" if v is None else format(v, fmt)
 
     def changed_rows():
         rows = []
-        for d in r.changed:
+        for d in shown_changed:
             was = (f" (was {d.old_index})"
                    if d.old_index is not None and d.old_index != d.index else "")
             changes = [f"tasks: {e(str(d.old_tasks))} &rarr; {e(str(d.new_tasks))}"
@@ -159,6 +179,9 @@ def render_html(r: DiffResult) -> str:
                 f"<td>{num(d.d_idle_ratio, '+.4f')}</td>"
                 f"<td>{num(d.d_spike_count, '+d')}</td></tr>"
             )
+        if more_changed:
+            rows.append(f'<tr><td colspan="5">&hellip; and {more_changed} more '
+                        'changed episodes</td></tr>')
         return "\n".join(rows) or '<tr><td colspan="5">none</td></tr>'
 
     def task_rows():
@@ -211,8 +234,8 @@ h1 {{ font-size: 1.4em; }} h2 {{ font-size: 1.1em; margin-top: 1.6em; }}
 <p>{r.a_episodes} &rarr; {r.b_episodes} episodes &mdash;
 +{len(r.added)} added, &minus;{len(r.removed)} removed,
 ~{len(r.changed)} changed{moved}, ={r.unchanged} unchanged</p>
-<p>Added: <code>{e(str(r.added))}</code><br>
-Removed: <code>{e(str(r.removed))}</code>{moved_list}</p>
+<p>Added: <code>{e(_index_list(r.added, max_show))}</code><br>
+Removed: <code>{e(_index_list(r.removed, max_show))}</code>{moved_list}</p>
 <h2>Changed episodes</h2>
 <table><tr><th>ep</th><th>length</th><th>changes (B &minus; A)</th>
 <th>&Delta;idle</th><th>&Delta;spikes</th></tr>

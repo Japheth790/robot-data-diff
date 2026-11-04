@@ -9,6 +9,7 @@ from pathlib import Path
 
 from . import __version__
 from .differ import diff_datasets
+from .filters import parse_episodes, select_episodes
 from .gate import evaluate, parse_fail_on
 from .loader import load_dataset
 from .report import render_html, render_text
@@ -43,6 +44,14 @@ def build_parser() -> argparse.ArgumentParser:
                    help="pair episodes by episode_index (default) or by a hash "
                         "of their action/state frames, which reports reordered "
                         "episodes as moved instead of added + removed")
+    d.add_argument("--episodes", metavar="SPEC",
+                   help="only diff these episode indices, e.g. '0-50,99'")
+    d.add_argument("--task", metavar="TEXT", action="append",
+                   help="only diff episodes whose task (in A or B) contains TEXT "
+                        "(case-insensitive; repeatable)")
+    d.add_argument("--max-show", metavar="N", type=int, default=None,
+                   help="show at most N changed episodes (and N added/removed "
+                        "indices) in the text/HTML reports")
     d.add_argument("--fail-on", metavar="RULES",
                    help="exit 1 if any rule hits, e.g. "
                         "'schema,fps,removed,changed>5%%,idle-increase>0.05' "
@@ -56,6 +65,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def cmd_diff(args) -> int:
     rules = parse_fail_on(args.fail_on) if args.fail_on else []
+    episodes = parse_episodes(args.episodes) if args.episodes else None
+    if args.max_show is not None and args.max_show < 0:
+        raise ValueError("--max-show must be >= 0")
     print("loading A ...", file=sys.stderr)
     a = load_dataset(args.dataset_a, cache_dir=args.cache_dir,
                      with_quality=not args.no_quality,
@@ -75,14 +87,20 @@ def cmd_diff(args) -> int:
             print(f"warning: {label}: metadata stats disagree with data/ for {n} "
                   "episode(s); metadata may be stale", file=sys.stderr)
 
+    if episodes is not None or args.task:
+        a, b = select_episodes(a, b, episodes=episodes, tasks=args.task)
+        print(f"filtered to {len(a.episodes)} (A) / {len(b.episodes)} (B) episodes",
+              file=sys.stderr)
+
     result = diff_datasets(a, b, checkpoint=args.checkpoint, match_by=args.match_by)
     hits = evaluate(rules, result) if rules else []
     data = result.to_dict()
     if rules:
         data["fail_on"] = {"rules": [r.text for r in rules], "failed": hits}
     as_json = json.dumps(data, indent=2, allow_nan=False)
-    print(as_json if args.format == "json" else render_text(result))
-    for path, render, what in ((args.html, render_html, "HTML report"),
+    print(as_json if args.format == "json" else render_text(result, args.max_show))
+    for path, render, what in ((args.html, lambda r: render_html(r, args.max_show),
+                                "HTML report"),
                                (args.json_out, lambda _: as_json, "JSON result")):
         if path:
             out = Path(path)
