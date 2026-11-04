@@ -23,7 +23,7 @@ def test_render_text(tmp_path, episodes):
 def test_render_html_escapes_task_names(tmp_path, episodes):
     out = render_html(_result(tmp_path, episodes, checkpoint="<b>x</b>"))
     assert out.startswith("<!DOCTYPE html>")
-    assert "<script>" not in out
+    assert "<script>alert" not in out and out.count("<script>") == 1  # ours
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in out
     assert "&lt;b&gt;x&lt;/b&gt;" in out
 
@@ -94,3 +94,24 @@ def test_cli_markdown(tmp_path, episodes, capsys):
     pa, pb = str(write_v30(tmp_path / "a", episodes)), str(write_v30(tmp_path / "b", b))
     assert main(["diff", pa, pb, "--format", "markdown"]) == 0
     assert "~1 changed" in capsys.readouterr().out
+
+
+def test_html_is_self_contained_with_histogram_and_sorting(tmp_path):
+    page = render_html(_rich_result(tmp_path))
+    assert "<svg" in page and 'class="bar-a"' in page and 'class="bar-b"' in page
+    assert 'class="sortable"' in page and "<script>" in page
+    assert "prefers-color-scheme: dark" in page
+    # no external resources
+    for needle in ("http://", "https://", "<link", "src="):
+        assert needle not in page, needle
+
+
+def test_html_colors_increases_and_decreases(tmp_path, episodes):
+    b = clone(episodes)
+    b[0]["action"] = b[0]["action"] * 1.5
+    b[1]["action"], b[1]["state"] = b[1]["action"][:-5], b[1]["state"][:-5]
+    r = diff_datasets(load_dataset(str(write_v30(tmp_path / "a", episodes))),
+                      load_dataset(str(write_v30(tmp_path / "b", b))))
+    page = render_html(r)
+    assert 'class="num neg" data-v="-5"' in page        # shorter episode
+    assert 'class="pos"' in page and 'class="neg"' in page
