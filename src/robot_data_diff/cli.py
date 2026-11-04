@@ -12,7 +12,7 @@ from .differ import diff_datasets
 from .filters import parse_episodes, select_episodes
 from .gate import evaluate, parse_fail_on
 from .loader import load_dataset
-from .report import render_html, render_text
+from .report import render_html, render_markdown, render_text
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -27,7 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
     d = sub.add_parser("diff", help="diff two dataset revisions")
     d.add_argument("dataset_a", help="local path or HF id (org/repo[@rev])")
     d.add_argument("dataset_b", help="local path or HF id (org/repo[@rev])")
-    d.add_argument("--format", choices=["text", "json"], default="text",
+    d.add_argument("--format", choices=["text", "json", "markdown"], default="text",
                    help="what to print on stdout (default: text)")
     d.add_argument("--html", metavar="OUT",
                    help="also write an HTML report to OUT")
@@ -98,7 +98,12 @@ def cmd_diff(args) -> int:
     if rules:
         data["fail_on"] = {"rules": [r.text for r in rules], "failed": hits}
     as_json = json.dumps(data, indent=2, allow_nan=False)
-    print(as_json if args.format == "json" else render_text(result, args.max_show))
+    if args.format == "json":
+        print(as_json)
+    elif args.format == "markdown":
+        print(render_markdown(result, args.max_show))
+    else:
+        print(render_text(result, args.max_show))
     for path, render, what in ((args.html, lambda r: render_html(r, args.max_show),
                                 "HTML report"),
                                (args.json_out, lambda _: as_json, "JSON result")):

@@ -1,4 +1,4 @@
-"""Human-readable text and HTML reports for a DiffResult."""
+"""Human-readable text, Markdown and HTML reports for a DiffResult."""
 from __future__ import annotations
 
 import html
@@ -152,6 +152,103 @@ def render_text(r: DiffResult, max_show: int | None = None) -> str:
         L.append("")
 
     L.append("=" * 72)
+    return "\n".join(L)
+
+
+def _md(s) -> str:
+    """Safe inside a GitHub-flavoured Markdown table cell."""
+    return html.escape(" ".join(str(s).split())).replace("|", "&#124;")
+
+
+def render_markdown(r: DiffResult, max_show: int | None = None) -> str:
+    """GitHub-flavoured Markdown, for PR comments and Hub discussions."""
+    L: list[str] = []
+    L.append(f"### robot-data-diff: `{_md(r.a_name)}` → `{_md(r.b_name)}`")
+    L.append("")
+    if r.checkpoint:
+        L.append(f"Policy checkpoint: `{_md(r.checkpoint)}`")
+        L.append("")
+
+    changed_fields = {n for n, _, _ in r.dataset_changes}
+    L.append("| | A | B |")
+    L.append("|---|---|---|")
+    for label, field, va, vb in (
+            ("codebase_version", "codebase_version", r.a_version, r.b_version),
+            ("fps", "fps", r.a_fps, r.b_fps),
+            ("robot_type", "robot_type", r.a_robot_type, r.b_robot_type),
+            ("episodes", None, r.a_episodes, r.b_episodes),
+            ("frames", None, sum(r.a_lengths), sum(r.b_lengths))):
+        flag = " ⚠️" if field in changed_fields else ""
+        L.append(f"| {label} | {_md(va)} | {_md(vb)}{flag} |")
+    L.append("")
+
+    moved = f" · >{len(r.moved)} moved" if r.match_by == "content" else ""
+    L.append(f"**Episodes:** +{len(r.added)} added · −{len(r.removed)} removed · "
+             f"~{len(r.changed)} changed{moved} · ={r.unchanged} unchanged")
+    L.append("")
+    if r.added:
+        L.append(f"- Added: `{_md(_index_list(r.added, max_show))}`")
+    if r.removed:
+        L.append(f"- Removed: `{_md(_index_list(r.removed, max_show))}`")
+    if r.moved:
+        shown, more = _head(r.moved, max_show)
+        L.append("- Moved: " + ", ".join(f"{a} → {b}" for a, b in shown)
+                 + (f" … and {more} more" if more else ""))
+    if r.added or r.removed or r.moved:
+        L.append("")
+
+    if r.dataset_changes or r.features_added or r.features_removed or r.features_changed:
+        L.append("**Dataset-level changes / schema drift**")
+        L.append("")
+        L.extend(f"- ⚠️ {_md(n)}: `{_md(va)}` → `{_md(vb)}`" for n, va, vb in r.dataset_changes)
+        L.extend(f"- ➕ `{_md(f)}`" for f in r.features_added)
+        L.extend(f"- ➖ `{_md(f)}`" for f in r.features_removed)
+        L.extend(f"- ✏️ `{_md(f)}`: `{_md(sa)}` → `{_md(sb)}`"
+                 for f, sa, sb in r.features_changed_specs)
+        L.append("")
+
+    if r.changed:
+        shown, more = _head(r.changed, max_show)
+        L.append(f"<details><summary>Changed episodes ({len(r.changed)})</summary>")
+        L.append("")
+        L.append("| ep | length | changes (B − A) | Δidle | Δspikes |")
+        L.append("|---|---|---|---|---|")
+        for d in shown:
+            was = f" (was {d.old_index})" if d.old_index not in (None, d.index) else ""
+            parts = ([f"tasks: {_md(d.old_tasks)} → {_md(d.new_tasks)}"]
+                     if d.tasks_changed else [])
+            parts += [f"`{_md(label[2:-1])}` {_md(val)}" for label, val in _delta_lines(d)]
+            idle = "n/a" if d.d_idle_ratio is None else f"{d.d_idle_ratio:+.4f}"
+            spikes = "n/a" if d.d_spike_count is None else f"{d.d_spike_count:+d}"
+            L.append(f"| {d.index}{was} | {d.old_length} → {d.new_length} "
+                     f"({d.d_length:+d}) | {'<br>'.join(parts) or '—'} | {idle} | {spikes} |")
+        if more:
+            L.append(f"| … | | {more} more changed episodes | | |")
+        L.append("")
+        L.append("</details>")
+        L.append("")
+
+    diff_tasks = [(t, ca, cb) for t, (ca, cb) in r.task_counts.items() if ca != cb]
+    if diff_tasks:
+        L.append("**Task inventory changes** (episodes per task)")
+        L.append("")
+        L.append("| task | A | B |")
+        L.append("|---|---|---|")
+        L.extend(f"| {_md(t)} | {ca} | {cb} |" for t, ca, cb in diff_tasks)
+        L.append("")
+
+    if r.a_stats_mismatches or r.b_stats_mismatches:
+        L.append("**Stale metadata** (per-episode stats disagree with `data/`)")
+        L.append("")
+        L.extend(f"- {_md(line)}" for line in mismatch_lines(r))
+        L.append("")
+
+    if r.mean_idle_a is not None:
+        L.append(f"**Quality (heuristic):** mean idle ratio {r.mean_idle_a:.4f} → "
+                 f"{r.mean_idle_b:.4f} ({r.mean_idle_b - r.mean_idle_a:+.4f}), "
+                 f"action spikes {r.spikes_a} → {r.spikes_b} "
+                 f"({r.spikes_b - r.spikes_a:+d})")
+        L.append("")
     return "\n".join(L)
 
 

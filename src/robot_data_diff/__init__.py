@@ -12,7 +12,7 @@ except PackageNotFoundError:  # running from a source tree without installing
 
 from .differ import SCHEMA_VERSION, DiffResult, EpisodeDelta, diff_datasets  # noqa: E402
 from .loader import DatasetError, DatasetView, EpisodeInfo, load_dataset  # noqa: E402
-from .report import render_html, render_text  # noqa: E402
+from .report import render_html, render_markdown, render_text  # noqa: E402
 
 __all__ = [
     "SCHEMA_VERSION",
@@ -25,5 +25,6 @@ __all__ = [
     "diff_datasets",
     "load_dataset",
     "render_html",
+    "render_markdown",
     "render_text",
 ]

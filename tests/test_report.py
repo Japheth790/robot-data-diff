@@ -59,3 +59,38 @@ def test_html_shows_what_text_shows(tmp_path):
                    "observation.state_max", "Stale metadata", "place cube",
                    "Dataset-level changes", "idle"):
         assert needle in page, needle
+
+
+def test_render_markdown(tmp_path):
+    from robot_data_diff.report import render_markdown
+
+    r = _rich_result(tmp_path)
+    md = render_markdown(r)
+    assert md.startswith("### robot-data-diff:")
+    assert "| fps | 10 | 30 ⚠️ |" in md
+    assert "<details><summary>Changed episodes" in md
+    assert "`observation.state_max`" in md
+    assert "**Stale metadata**" in md
+    assert "| place cube | 0 | 1 |" in md
+    # every table row has the same number of cells as its header
+    for block in md.split("\n\n"):
+        rows = [ln for ln in block.splitlines() if ln.startswith("|")]
+        if rows:
+            assert len({ln.count("|") for ln in rows}) == 1, block
+
+
+def test_markdown_escapes_pipes_and_html(tmp_path, episodes):
+    from robot_data_diff.report import render_markdown
+
+    md = render_markdown(_result(tmp_path, episodes))
+    assert "<script>" not in md and "&lt;script&gt;" in md
+
+
+def test_cli_markdown(tmp_path, episodes, capsys):
+    from robot_data_diff.cli import main
+
+    b = clone(episodes)
+    b[0]["action"] = b[0]["action"] * 2
+    pa, pb = str(write_v30(tmp_path / "a", episodes)), str(write_v30(tmp_path / "b", b))
+    assert main(["diff", pa, pb, "--format", "markdown"]) == 0
+    assert "~1 changed" in capsys.readouterr().out

@@ -86,3 +86,4 @@ def test_json_file_next_to_text(pair, tmp_path, capsys):
     assert main(["diff", *pair, "--json", str(out)]) == 0
     assert "~1 changed" in capsys.readouterr().out
     assert json.loads(out.read_text(encoding="utf-8"))["summary"]["changed"] == 1
+
