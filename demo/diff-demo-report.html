@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>robot-data-diff report</title>
+<style>
+:root {
+  --bg: #ffffff; --fg: #1f2328; --muted: #656d76; --border: #d0d7de;
+  --card: #f6f8fa; --hl: #fff8c5; --warn-bg: #fff1e5; --warn: #bc4c00;
+  --pos: #0969da; --neg: #8250df; --bad: #cf222e; --good: #1a7f37;
+  --a: #8c959f; --b: #0969da; --code: #eff1f3;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d1117; --fg: #e6edf3; --muted: #8d96a0; --border: #30363d;
+    --card: #161b22; --hl: #3b2e00; --warn-bg: #3d1d00; --warn: #ffa657;
+    --pos: #58a6ff; --neg: #bc8cff; --bad: #ff7b72; --good: #3fb950;
+    --a: #6e7681; --b: #58a6ff; --code: #1f242c;
+  }
+}
+* { box-sizing: border-box; }
+body { font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+       background: var(--bg); color: var(--fg); max-width: 1180px;
+       margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+h2 { font-size: 16px; margin: 32px 0 8px; }
+.meta { color: var(--muted); margin: 0; }
+.meta b { color: var(--fg); }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px;
+       font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.cards { display: grid; gap: 10px; margin: 20px 0;
+         grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+.card { background: var(--card); border: 1px solid var(--border);
+        border-radius: 8px; padding: 10px 12px; }
+.card .n { font-size: 22px; font-weight: 600; }
+.card .l { color: var(--muted); font-size: 12px; }
+.card.warn { border-color: var(--warn); background: var(--warn-bg); }
+.alert { background: var(--warn-bg); border: 1px solid var(--warn);
+         border-radius: 8px; padding: 8px 14px; margin: 12px 0; }
+.alert ul { margin: 4px 0; padding-left: 20px; }
+table { border-collapse: collapse; width: 100%; }
+th, td { border-bottom: 1px solid var(--border); padding: 6px 8px;
+         text-align: left; vertical-align: top; }
+th { position: sticky; top: 0; background: var(--card); font-weight: 600;
+     white-space: nowrap; }
+th.sort { cursor: pointer; user-select: none; }
+th.sort::after { content: " \2195"; color: var(--muted); }
+th.asc::after { content: " \2191"; } th.desc::after { content: " \2193"; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr.hl td { background: var(--hl); }
+.scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+.chg { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.pos { color: var(--pos); } .neg { color: var(--neg); }
+.bad { color: var(--bad); font-weight: 600; } .good { color: var(--good); }
+.muted { color: var(--muted); }
+svg text { fill: var(--muted); font-size: 11px; }
+svg .bar-a { fill: var(--a); } svg .bar-b { fill: var(--b); }
+svg .axis { stroke: var(--border); }
+footer { margin-top: 40px; color: var(--muted); font-size: 12px; }
+</style></head><body>
+<h1>robot-data-diff report</h1>
+<p class="meta"><b>A:</b> testdata/pusht &middot; <code>v3.0</code> &middot; 206 episodes &middot; 10 fps &middot; robot unknown</p>
+<p class="meta"><b>B:</b> testdata/pusht_v2 &middot; <code>v3.0</code> &middot; 201 episodes &middot; 10 fps &middot; robot unknown</p>
+<p class="meta"><b>Policy checkpoint:</b> ckpt-42</p>
+<div class="cards"><div class="card"><div class="n">206 &rarr; 201</div><div class="l">episodes</div></div><div class="card"><div class="n">+1</div><div class="l">added</div></div><div class="card"><div class="n">&minus;6</div><div class="l">removed</div></div><div class="card warn"><div class="n">~5</div><div class="l">changed</div></div><div class="card"><div class="n">=195</div><div class="l">unchanged</div></div><div class="card"><div class="n">0</div><div class="l">dataset-level changes</div></div><div class="card"><div class="n">0</div><div class="l">schema changes</div></div><div class="card"><div class="n"><span class="bad">+0.0006</span></div><div class="l">mean idle ratio (0.0309 &rarr; 0.0315)</div></div><div class="card"><div class="n"><span class="bad">+2</span></div><div class="l">action spikes (25 &rarr; 27)</div></div></div>
+
+<p>Added: <code>[206]</code><br>Removed: <code>[200, 201, 202, 203, 204, 205]</code></p>
+<h2>Changed episodes</h2>
+<div class="scroll"><table class="sortable"><thead><tr><th class="sort num">ep</th><th class="sort num">ep in A</th><th class="sort num">len A</th><th class="sort num">len B</th><th class="sort num">&Delta;len</th><th>changes (B &minus; A)</th><th class="sort num">&Delta;idle</th><th class="sort num">&Delta;spikes</th></tr></thead><tbody><tr data-ep="0"><td class="num" data-v="0">0</td><td class="num" data-v="0">0</td><td class="num" data-v="161">161</td><td class="num" data-v="161">161</td><td class="num muted" data-v="0">+0</td><td class="chg"><b>&Delta;action_min</b> [<span class="pos">+46.5000</span>, <span class="pos">+35.5000</span>]<br><b>&Delta;action_max</b> [<span class="pos">+187.5000</span>, <span class="pos">+224.5000</span>]<br><b>&Delta;action_mean</b> [<span class="pos">+104.5031</span>, <span class="pos">+144.1553</span>]<br><b>&Delta;action_std</b> [<span class="pos">+44.1925</span>, <span class="pos">+48.3483</span>]</td><td class="num muted" data-v="0.0">+0.0000</td><td class="num muted" data-v="0">+0</td></tr>
+<tr data-ep="1"><td class="num" data-v="1">1</td><td class="num" data-v="1">1</td><td class="num" data-v="118">118</td><td class="num" data-v="118">118</td><td class="num muted" data-v="0">+0</td><td class="chg"><b>&Delta;action_min</b> [<span class="pos">+22.0000</span>, <span class="pos">+79.0000</span>]<br><b>&Delta;action_max</b> [<span class="pos">+179.5000</span>, <span class="pos">+226.5000</span>]<br><b>&Delta;action_mean</b> [<span class="pos">+91.4746</span>, <span class="pos">+159.1737</span>]<br><b>&Delta;action_std</b> [<span class="pos">+45.0028</span>, <span class="pos">+37.2605</span>]</td><td class="num muted" data-v="0.0">+0.0000</td><td class="num muted" data-v="0">+0</td></tr>
+<tr data-ep="2"><td class="num" data-v="2">2</td><td class="num" data-v="2">2</td><td class="num" data-v="141">141</td><td class="num" data-v="141">141</td><td class="num muted" data-v="0">+0</td><td class="chg"><b>&Delta;action_min</b> [<span class="pos">+42.5000</span>, <span class="pos">+28.0000</span>]<br><b>&Delta;action_max</b> [<span class="pos">+123.5000</span>, <span class="pos">+187.0000</span>]<br><b>&Delta;action_mean</b> [<span class="pos">+71.1596</span>, <span class="pos">+114.7482</span>]<br><b>&Delta;action_std</b> [<span class="pos">+19.9049</span>, <span class="pos">+44.0096</span>]</td><td class="num muted" data-v="0.0">+0.0000</td><td class="num muted" data-v="0">+0</td></tr>
+<tr data-ep="3"><td class="num" data-v="3">3</td><td class="num" data-v="3">3</td><td class="num" data-v="159">159</td><td class="num" data-v="159">159</td><td class="num muted" data-v="0">+0</td><td class="chg"><b>&Delta;action_min</b> [<span class="pos">+100.0000</span>, <span class="pos">+84.0000</span>]<br><b>&Delta;action_max</b> [<span class="pos">+255.5000</span>, <span class="pos">+222.0000</span>]<br><b>&Delta;action_mean</b> [<span class="pos">+168.0251</span>, <span class="pos">+130.3113</span>]<br><b>&Delta;action_std</b> [<span class="pos">+35.8709</span>, <span class="pos">+35.5753</span>]</td><td class="num muted" data-v="0.0">+0.0000</td><td class="num muted" data-v="0">+0</td></tr>
+<tr data-ep="4"><td class="num" data-v="4">4</td><td class="num" data-v="4">4</td><td class="num" data-v="159">159</td><td class="num" data-v="159">159</td><td class="num muted" data-v="0">+0</td><td class="chg"><b>&Delta;action_min</b> [<span class="pos">+87.5000</span>, <span class="pos">+64.5000</span>]<br><b>&Delta;action_max</b> [<span class="pos">+195.0000</span>, <span class="pos">+192.0000</span>]<br><b>&Delta;action_mean</b> [<span class="pos">+144.3522</span>, <span class="pos">+121.6572</span>]<br><b>&Delta;action_std</b> [<span class="pos">+28.6851</span>, <span class="pos">+34.9766</span>]</td><td class="num muted" data-v="0.0">+0.0000</td><td class="num muted" data-v="0">+0</td></tr></tbody></table></div>
+<h2>Episode lengths</h2>
+<svg viewBox="0 0 720 200" width="100%" role="img" aria-label="Histogram of episode lengths in A and B"><line class="axis" x1="44" y1="170" x2="708" y2="170"/><line class="axis" x1="44" y1="24" x2="44" y2="170"/><text x="38" y="28" text-anchor="end">18</text><text x="38" y="170" text-anchor="end">0</text><rect class="bar-a" x="46.8" y="153.8" width="11.1" height="16.2"><title>A: 2 episodes, 49&ndash;57 frames</title></rect><rect class="bar-b" x="57.8" y="161.9" width="11.1" height="8.1"><title>B: 1 episodes, 49&ndash;57 frames</title></rect><rect class="bar-a" x="74.4" y="137.6" width="11.1" height="32.4"><title>A: 4 episodes, 57&ndash;65 frames</title></rect><rect class="bar-b" x="85.5" y="137.6" width="11.1" height="32.4"><title>B: 4 episodes, 57&ndash;65 frames</title></rect><rect class="bar-a" x="102.1" y="88.9" width="11.1" height="81.1"><title>A: 10 episodes, 65&ndash;74 frames</title></rect><rect class="bar-b" x="113.2" y="88.9" width="11.1" height="81.1"><title>B: 10 episodes, 65&ndash;74 frames</title></rect><rect class="bar-a" x="129.8" y="97.0" width="11.1" height="73.0"><title>A: 9 episodes, 74&ndash;82 frames</title></rect><rect class="bar-b" x="140.8" y="97.0" width="11.1" height="73.0"><title>B: 9 episodes, 74&ndash;82 frames</title></rect><rect class="bar-a" x="157.4" y="80.8" width="11.1" height="89.2"><title>A: 11 episodes, 82&ndash;90 frames</title></rect><rect class="bar-b" x="168.5" y="80.8" width="11.1" height="89.2"><title>B: 11 episodes, 82&ndash;90 frames</title></rect><rect class="bar-a" x="185.1" y="48.3" width="11.1" height="121.7"><title>A: 15 episodes, 90&ndash;98 frames</title></rect><rect class="bar-b" x="196.2" y="56.4" width="11.1" height="113.6"><title>B: 14 episodes, 90&ndash;98 frames</title></rect><rect class="bar-a" x="212.8" y="24.0" width="11.1" height="146.0"><title>A: 18 episodes, 98&ndash;106 frames</title></rect><rect class="bar-b" x="223.8" y="24.0" width="11.1" height="146.0"><title>B: 18 episodes, 98&ndash;106 frames</title></rect><rect class="bar-a" x="240.4" y="24.0" width="11.1" height="146.0"><title>A: 18 episodes, 106&ndash;115 frames</title></rect><rect class="bar-b" x="251.5" y="24.0" width="11.1" height="146.0"><title>B: 18 episodes, 106&ndash;115 frames</title></rect><rect class="bar-a" x="268.1" y="24.0" width="11.1" height="146.0"><title>A: 18 episodes, 115&ndash;123 frames</title></rect><rect class="bar-b" x="279.2" y="24.0" width="11.1" height="146.0"><title>B: 18 episodes, 115&ndash;123 frames</title></rect><rect class="bar-a" x="295.8" y="56.4" width="11.1" height="113.6"><title>A: 14 episodes, 123&ndash;131 frames</title></rect><rect class="bar-b" x="306.8" y="56.4" width="11.1" height="113.6"><title>B: 14 episodes, 123&ndash;131 frames</title></rect><rect class="bar-a" x="323.4" y="32.1" width="11.1" height="137.9"><title>A: 17 episodes, 131&ndash;139 frames</title></rect><rect class="bar-b" x="334.5" y="40.2" width="11.1" height="129.8"><title>B: 16 episodes, 131&ndash;139 frames</title></rect><rect class="bar-a" x="351.1" y="48.3" width="11.1" height="121.7"><title>A: 15 episodes, 139&ndash;148 frames</title></rect><rect class="bar-b" x="362.2" y="48.3" width="11.1" height="121.7"><title>B: 15 episodes, 139&ndash;148 frames</title></rect><rect class="bar-a" x="378.8" y="32.1" width="11.1" height="137.9"><title>A: 17 episodes, 148&ndash;156 frames</title></rect><rect class="bar-b" x="389.8" y="40.2" width="11.1" height="129.8"><title>B: 16 episodes, 148&ndash;156 frames</title></rect><rect class="bar-a" x="406.4" y="80.8" width="11.1" height="89.2"><title>A: 11 episodes, 156&ndash;164 frames</title></rect><rect class="bar-b" x="417.5" y="80.8" width="11.1" height="89.2"><title>B: 11 episodes, 156&ndash;164 frames</title></rect><rect class="bar-a" x="434.1" y="97.0" width="11.1" height="73.0"><title>A: 9 episodes, 164&ndash;172 frames</title></rect><rect class="bar-b" x="445.2" y="113.2" width="11.1" height="56.8"><title>B: 7 episodes, 164&ndash;172 frames</title></rect><rect class="bar-a" x="461.8" y="145.7" width="11.1" height="24.3"><title>A: 3 episodes, 172&ndash;180 frames</title></rect><rect class="bar-b" x="472.8" y="145.7" width="11.1" height="24.3"><title>B: 3 episodes, 172&ndash;180 frames</title></rect><rect class="bar-a" x="489.4" y="113.2" width="11.1" height="56.8"><title>A: 7 episodes, 180&ndash;189 frames</title></rect><rect class="bar-b" x="500.5" y="105.1" width="11.1" height="64.9"><title>B: 8 episodes, 180&ndash;189 frames</title></rect><rect class="bar-a" x="517.1" y="153.8" width="11.1" height="16.2"><title>A: 2 episodes, 189&ndash;197 frames</title></rect><rect class="bar-b" x="528.2" y="153.8" width="11.1" height="16.2"><title>B: 2 episodes, 189&ndash;197 frames</title></rect><rect class="bar-a" x="544.8" y="153.8" width="11.1" height="16.2"><title>A: 2 episodes, 197&ndash;205 frames</title></rect><rect class="bar-b" x="555.8" y="153.8" width="11.1" height="16.2"><title>B: 2 episodes, 197&ndash;205 frames</title></rect><rect class="bar-a" x="572.4" y="153.8" width="11.1" height="16.2"><title>A: 2 episodes, 205&ndash;213 frames</title></rect><rect class="bar-b" x="583.5" y="153.8" width="11.1" height="16.2"><title>B: 2 episodes, 205&ndash;213 frames</title></rect><rect class="bar-a" x="600.1" y="170.0" width="11.1" height="0.0"><title>A: 0 episodes, 213&ndash;221 frames</title></rect><rect class="bar-b" x="611.2" y="170.0" width="11.1" height="0.0"><title>B: 0 episodes, 213&ndash;221 frames</title></rect><rect class="bar-a" x="627.8" y="161.9" width="11.1" height="8.1"><title>A: 1 episodes, 221&ndash;230 frames</title></rect><rect class="bar-b" x="638.8" y="161.9" width="11.1" height="8.1"><title>B: 1 episodes, 221&ndash;230 frames</title></rect><rect class="bar-a" x="655.4" y="170.0" width="11.1" height="0.0"><title>A: 0 episodes, 230&ndash;238 frames</title></rect><rect class="bar-b" x="666.5" y="170.0" width="11.1" height="0.0"><title>B: 0 episodes, 230&ndash;238 frames</title></rect><rect class="bar-a" x="683.1" y="161.9" width="11.1" height="8.1"><title>A: 1 episodes, 238&ndash;246 frames</title></rect><rect class="bar-b" x="694.2" y="161.9" width="11.1" height="8.1"><title>B: 1 episodes, 238&ndash;246 frames</title></rect><text x="44.0" y="190" text-anchor="start">49</text><text x="376.0" y="190" text-anchor="middle">148</text><text x="708.0" y="190" text-anchor="end">246</text><text x="376.0" y="200" text-anchor="middle">episode length (frames)</text><rect class="bar-a" x="588" y="6" width="10" height="10"/><text x="602" y="15">A (206)</text><rect class="bar-b" x="650" y="6" width="10" height="10"/><text x="664" y="15">B (201)</text></svg>
+<h2>Task inventory</h2>
+<div class="scroll"><table><thead><tr><th>task</th><th class="num">A</th><th class="num">B</th><th class="num">&Delta;</th></tr></thead><tbody><tr class="hl"><td>Push the T-shaped block onto the T-shaped target.</td><td class="num">206</td><td class="num">201</td><td class="num neg" data-v="-5">-5</td></tr></tbody></table></div>
+<h2>Quality summary</h2>
+<p>Mean idle-frame ratio 0.0309 &rarr; 0.0315; total action spikes 25 &rarr; 27. <span class="muted">Lightweight CPU heuristics, not a validator.</span></p>
+
+<footer>Generated by robot-data-diff 0.1.0 &middot; match by index</footer>
+<script>
+document.querySelectorAll("table.sortable").forEach(function (table) {
+  table.querySelectorAll("th.sort").forEach(function (th, col) {
+    th.addEventListener("click", function () {
+      var body = table.tBodies[0], asc = !th.classList.contains("asc");
+      table.querySelectorAll("th").forEach(function (h) {
+        h.classList.remove("asc", "desc"); });
+      th.classList.add(asc ? "asc" : "desc");
+      var rows = Array.prototype.slice.call(body.querySelectorAll("tr[data-ep]"));
+      rows.sort(function (r1, r2) {
+        var a = r1.children[col], b = r2.children[col];
+        var x = a.dataset.v !== undefined ? parseFloat(a.dataset.v) : a.textContent;
+        var y = b.dataset.v !== undefined ? parseFloat(b.dataset.v) : b.textContent;
+        if (x < y) return asc ? -1 : 1;
+        if (x > y) return asc ? 1 : -1;
+        return 0;
+      });
+      rows.forEach(function (r) { body.insertBefore(r, body.querySelector("tr.more")); });
+    });
+  });
+});
+</script>
+</body></html>
+

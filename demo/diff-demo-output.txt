@@ -14,35 +14,42 @@ CHANGED EPISODES (5):
            d(action_min)  [+46.5000, +35.5000]
            d(action_max)  [+187.5000, +224.5000]
            d(action_mean) [+104.5031, +144.1553]
+           d(action_std)  [+44.1925, +48.3483]
            d(idle_ratio)  +0.0000
            d(spikes)      +0
   [ep 1] length 118 -> 118 (+0 frames)
            d(action_min)  [+22.0000, +79.0000]
            d(action_max)  [+179.5000, +226.5000]
            d(action_mean) [+91.4746, +159.1737]
+           d(action_std)  [+45.0028, +37.2605]
            d(idle_ratio)  +0.0000
            d(spikes)      +0
   [ep 2] length 141 -> 141 (+0 frames)
            d(action_min)  [+42.5000, +28.0000]
            d(action_max)  [+123.5000, +187.0000]
            d(action_mean) [+71.1596, +114.7482]
+           d(action_std)  [+19.9049, +44.0096]
            d(idle_ratio)  +0.0000
            d(spikes)      +0
   [ep 3] length 159 -> 159 (+0 frames)
            d(action_min)  [+100.0000, +84.0000]
            d(action_max)  [+255.5000, +222.0000]
            d(action_mean) [+168.0251, +130.3113]
+           d(action_std)  [+35.8709, +35.5753]
            d(idle_ratio)  +0.0000
            d(spikes)      +0
   [ep 4] length 159 -> 159 (+0 frames)
            d(action_min)  [+87.5000, +64.5000]
            d(action_max)  [+195.0000, +192.0000]
            d(action_mean) [+144.3522, +121.6572]
+           d(action_std)  [+28.6851, +34.9766]
            d(idle_ratio)  +0.0000
            d(spikes)      +0
 
 TASK INVENTORY (episodes per task: A -> B):
   * Push the T-shaped block onto the T-shaped target.                206 ->   201
+
+Dataset-level: same fps, robot_type and codebase_version.
 
 Schema: identical feature sets.
 
