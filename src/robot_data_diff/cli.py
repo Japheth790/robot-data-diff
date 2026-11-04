@@ -38,7 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--no-quality", action="store_true",
                    help="skip per-episode quality stats (metadata-only, faster)")
     d.add_argument("--verify-stats", action="store_true",
-                   help="recompute per-episode min/max/mean from data/ and warn "
+                   help="recompute per-episode min/max/mean/std from data/ and warn "
                         "where the metadata stats disagree (stale metadata)")
     d.add_argument("--match-by", choices=["index", "content"], default="index",
                    help="pair episodes by episode_index (default) or by a hash "

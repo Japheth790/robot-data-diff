@@ -365,7 +365,7 @@ def _verifiable_features(ds: DatasetView) -> list[str]:
 
 
 def _verify_stats(ds: DatasetView, frames: dict, features: list[str]) -> None:
-    """Recompute length and min/max/mean from frames; record disagreements."""
+    """Recompute length and min/max/mean/std from frames; record disagreements."""
     def miss(idx, feat, stat, meta, data):
         ds.stats_mismatches.append({"episode": idx, "feature": feat, "stat": stat,
                                     "metadata": meta, "data": data})
@@ -379,7 +379,8 @@ def _verify_stats(ds: DatasetView, frames: dict, features: list[str]) -> None:
             if feat not in cols:
                 continue
             x = cols[feat].astype(np.float64)
-            for stat, val in (("min", x.min(0)), ("max", x.max(0)), ("mean", x.mean(0))):
+            for stat, val in (("min", x.min(0)), ("max", x.max(0)), ("mean", x.mean(0)),
+                              ("std", x.std(0))):  # population std, as LeRobot
                 meta = ep.stat(feat, stat)
                 if meta is None:
                     continue

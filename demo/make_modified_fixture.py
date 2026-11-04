@@ -59,6 +59,7 @@ for ei in CHANGED:
     ep.at[row, "stats/action/min"] = acts.min(axis=0)
     ep.at[row, "stats/action/max"] = acts.max(axis=0)
     ep.at[row, "stats/action/mean"] = acts.mean(axis=0)
+    ep.at[row, "stats/action/std"] = acts.std(axis=0)
 
 # drop REMOVED, append ADDED (copy of episode 10's row, new index/stats)
 ep = ep[~ep["episode_index"].isin(REMOVED)].copy()
@@ -69,6 +70,7 @@ acts = np.stack(df[df["episode_index"] == ADDED_NEW]["action"]
 new_row["stats/action/min"] = acts.min(axis=0)
 new_row["stats/action/max"] = acts.max(axis=0)
 new_row["stats/action/mean"] = acts.mean(axis=0)
+new_row["stats/action/std"] = acts.std(axis=0)
 new_row["dataset_from_index"] = int(df[df["episode_index"] == ADDED_NEW]["index"].min())
 new_row["dataset_to_index"] = int(df[df["episode_index"] == ADDED_NEW]["index"].max()) + 1
 ep = pd.concat([ep, new_row.to_frame().T], ignore_index=True)
