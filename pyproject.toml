@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,6 +9,31 @@ description = "Episode-aware diff for LeRobot robot-training datasets: what chan
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "yafetashenafi790-lgtm" }]
+keywords = [
+    "lerobot",
+    "robotics",
+    "dataset",
+    "diff",
+    "imitation-learning",
+    "huggingface",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Utilities",
+]
 dependencies = [
     "pyarrow>=12",
     "pandas>=2",
@@ -16,9 +41,18 @@ dependencies = [
     "huggingface_hub>=0.20",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "ruff>=0.5",
+]
+
+[project.urls]
+Homepage = "https://github.com/yafetashenafi790-lgtm/robot-data-diff"
+Issues = "https://github.com/yafetashenafi790-lgtm/robot-data-diff/issues"
+
 [project.scripts]
 robot-data-diff = "robot_data_diff.cli:main"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["robot_data_diff*"]
+where = ["src"]
