@@ -1,5 +1,7 @@
 # robot-data-diff
 
+[![CI](https://github.com/yafetashenafi790-lgtm/robot-data-diff/actions/workflows/ci.yml/badge.svg)](https://github.com/yafetashenafi790-lgtm/robot-data-diff/actions/workflows/ci.yml)
+
 **Episode-aware diff for LeRobot robot-training datasets.**
 
 You retrained the policy and it got worse. Was it the code — or the data?
@@ -62,7 +64,7 @@ Each side can be a local path or a Hugging Face dataset id
   (parquet episode metadata + data chunks + `meta/info.json`).
 - **LeRobot v2.1** — implemented against the documented v2.1 layout
   (`meta/episodes.jsonl`, `meta/episodes_stats.jsonl`, per-episode data
-  files). Tested with a synthetic v2 fixture (`tests/make_v2_fixture.py`);
+  files). Tested with synthetic v2.1 fixtures (`tests/lerobot_fixtures.py`);
   no public v2 dataset was reachable at build time, so treat v2 support
   as beta and report issues.
 
@@ -93,7 +95,7 @@ See `demo/diff-demo-report.html` for the HTML version.
 
 ```bash
 source .venv/bin/activate
-python tests/make_modified_fixture.py      # builds testdata/pusht_v2
+python demo/make_modified_fixture.py      # builds testdata/pusht_v2
 robot-data-diff diff testdata/pusht testdata/pusht_v2 \
     --checkpoint ckpt-42 --html demo/diff-demo-report.html
 ```
