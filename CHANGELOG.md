@@ -6,6 +6,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- CI and release workflows use GitHub Actions versions that run on Node 24
+  (`actions/checkout@v7`, `actions/setup-python@v7`, `actions/upload-artifact@v7`,
+  `actions/download-artifact@v8`), which fixes the "Node.js 20 is deprecated"
+  warning. The GitHub Actions example in the README is updated to match.
+
 ## [0.2.0] - 2026-11-03
 
 ### Added

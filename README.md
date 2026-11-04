@@ -188,7 +188,7 @@ jobs:
   diff:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
       - run: pip install robot-data-diff
@@ -199,7 +199,7 @@ jobs:
           robot-data-diff diff my-org/teleop-data@main my-org/teleop-data@candidate \
             --format markdown --max-show 50 --json diff.json \
             --fail-on "schema,fps,removed,changed>5%" >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: dataset-diff
