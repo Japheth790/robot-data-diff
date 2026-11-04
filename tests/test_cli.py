@@ -69,3 +69,20 @@ def test_hub_failure_is_one_line_error(pair, capsys, monkeypatch):
     err = capsys.readouterr().err.strip().splitlines()
     assert err[-1].startswith("error:") and "someorg/nonexistent" in err[-1]
     assert "Traceback" not in "\n".join(err)
+
+
+def test_format_json_on_stdout(pair, capsys):
+    import json
+
+    assert main(["diff", *pair, "--format", "json"]) == 0
+    d = json.loads(capsys.readouterr().out)
+    assert d["schema_version"] == 1 and d["summary"]["changed"] == 1
+
+
+def test_json_file_next_to_text(pair, tmp_path, capsys):
+    import json
+
+    out = tmp_path / "r.json"
+    assert main(["diff", *pair, "--json", str(out)]) == 0
+    assert "~1 changed" in capsys.readouterr().out
+    assert json.loads(out.read_text(encoding="utf-8"))["summary"]["changed"] == 1

@@ -1,7 +1,8 @@
-"""CLI entry point: robot-data-diff diff <A> <B> [--html OUT] [--checkpoint LBL]."""
+"""CLI entry point: robot-data-diff diff <A> <B> [--format F] [--html OUT] [--json OUT]."""
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import traceback
 from pathlib import Path
@@ -24,8 +25,12 @@ def build_parser() -> argparse.ArgumentParser:
     d = sub.add_parser("diff", help="diff two dataset revisions")
     d.add_argument("dataset_a", help="local path or HF id (org/repo[@rev])")
     d.add_argument("dataset_b", help="local path or HF id (org/repo[@rev])")
+    d.add_argument("--format", choices=["text", "json"], default="text",
+                   help="what to print on stdout (default: text)")
     d.add_argument("--html", metavar="OUT",
                    help="also write an HTML report to OUT")
+    d.add_argument("--json", metavar="OUT", dest="json_out",
+                   help="also write the machine-readable JSON result to OUT")
     d.add_argument("--checkpoint", metavar="LABEL",
                    help="policy checkpoint name to link this diff to")
     d.add_argument("--no-quality", action="store_true",
@@ -65,12 +70,15 @@ def cmd_diff(args) -> int:
                   "episode(s); metadata may be stale", file=sys.stderr)
 
     result = diff_datasets(a, b, checkpoint=args.checkpoint, match_by=args.match_by)
-    print(render_text(result))
-    if args.html:
-        out = Path(args.html)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(render_html(result))
-        print(f"\nHTML report written to {args.html}", file=sys.stderr)
+    as_json = json.dumps(result.to_dict(), indent=2, allow_nan=False)
+    print(as_json if args.format == "json" else render_text(result))
+    for path, render, what in ((args.html, render_html, "HTML report"),
+                               (args.json_out, lambda _: as_json, "JSON result")):
+        if path:
+            out = Path(path)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(render(result) + "\n", encoding="utf-8")
+            print(f"{what} written to {path}", file=sys.stderr)
     return 0
 
 
