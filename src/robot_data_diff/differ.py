@@ -1,10 +1,15 @@
 """Episode-aware diff between two DatasetViews."""
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 from .loader import DatasetView
 from .stats import STAT_KEYS, fingerprint, rounded
+
+# Bump when a key in DiffResult.to_dict() is renamed, removed or changes
+# meaning. Adding keys does not bump it.
+SCHEMA_VERSION = 1
 
 
 @dataclass
@@ -53,7 +58,9 @@ class DiffResult:
     b_robot_type: str | None = None
     features_added: list = field(default_factory=list)
     features_removed: list = field(default_factory=list)
-    features_changed: list = field(default_factory=list)
+    features_changed: list = field(default_factory=list)  # "f: {..} -> {..}"
+    # (feature, spec in A, spec in B) for each entry of features_changed
+    features_changed_specs: list = field(default_factory=list)
     a_stats_verified: bool = False
     b_stats_verified: bool = False
     a_stats_mismatches: list = field(default_factory=list)
@@ -63,6 +70,77 @@ class DiffResult:
     spikes_a: int | None = None
     spikes_b: int | None = None
     checkpoint: str | None = None
+    a_lengths: list = field(default_factory=list)  # every episode's length
+    b_lengths: list = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        """JSON-ready dict with a stable layout (see docs/json-schema.md)."""
+        from . import __version__
+
+        def side(x):
+            lengths = getattr(self, f"{x}_lengths")
+            return {
+                "name": getattr(self, f"{x}_name"),
+                "codebase_version": getattr(self, f"{x}_version"),
+                "fps": getattr(self, f"{x}_fps"),
+                "robot_type": getattr(self, f"{x}_robot_type"),
+                "episodes": getattr(self, f"{x}_episodes"),
+                "frames": sum(lengths),
+                "mean_idle_ratio": getattr(self, f"mean_idle_{x}"),
+                "total_spikes": getattr(self, f"spikes_{x}"),
+                "stats_verified": getattr(self, f"{x}_stats_verified"),
+                "stats_mismatches": getattr(self, f"{x}_stats_mismatches"),
+            }
+
+        out = {
+            "schema_version": SCHEMA_VERSION,
+            "tool": {"name": "robot-data-diff", "version": __version__},
+            "checkpoint": self.checkpoint,
+            "match_by": self.match_by,
+            "a": side("a"),
+            "b": side("b"),
+            "summary": {"added": len(self.added), "removed": len(self.removed),
+                        "changed": len(self.changed), "moved": len(self.moved),
+                        "unchanged": self.unchanged},
+            "episodes": {
+                "added": self.added,
+                "removed": self.removed,
+                "moved": [{"from": ia, "to": ib} for ia, ib in self.moved],
+                "changed": [{
+                    "index": d.index,
+                    "old_index": d.old_index if d.old_index is not None else d.index,
+                    "old_length": d.old_length, "new_length": d.new_length,
+                    "d_length": d.d_length,
+                    "tasks_changed": d.tasks_changed,
+                    "old_tasks": d.old_tasks, "new_tasks": d.new_tasks,
+                    "feature_deltas": d.feature_deltas,
+                    "d_idle_ratio": d.d_idle_ratio,
+                    "d_spike_count": d.d_spike_count,
+                } for d in self.changed],
+            },
+            "tasks": [{"task": t, "a": ca, "b": cb}
+                      for t, (ca, cb) in self.task_counts.items()],
+            "dataset_changes": [{"field": n, "a": va, "b": vb}
+                                for n, va, vb in self.dataset_changes],
+            "schema": {
+                "added": self.features_added,
+                "removed": self.features_removed,
+                "changed": [{"feature": f, "a": sa, "b": sb}
+                            for f, sa, sb in self.features_changed_specs],
+            },
+        }
+        return _json_safe(out)
+
+
+def _json_safe(x):
+    """Replace NaN/inf (not valid JSON) with None, recursively."""
+    if isinstance(x, float):
+        return x if math.isfinite(x) else None
+    if isinstance(x, dict):
+        return {k: _json_safe(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [_json_safe(v) for v in x]
+    return x
 
 
 def _sub(a, b):
@@ -206,6 +284,7 @@ def diff_datasets(a: DatasetView, b: DatasetView,
         if a.features[f] != b.features[f]:
             res.features_changed.append(
                 f"{f}: {a.features[f]} -> {b.features[f]}")
+            res.features_changed_specs.append((f, a.features[f], b.features[f]))
 
     # quality summary
     def qmean(ds: DatasetView):
@@ -218,4 +297,6 @@ def diff_datasets(a: DatasetView, b: DatasetView,
 
     res.mean_idle_a, res.spikes_a = qmean(a)
     res.mean_idle_b, res.spikes_b = qmean(b)
+    res.a_lengths = [e.length for e in a.episodes.values()]
+    res.b_lengths = [e.length for e in b.episodes.values()]
     return res
