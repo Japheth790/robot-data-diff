@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-authors = [{ name = "yafetashenafi790-lgtm" }]
+authors = [{ name = "Japheth790" }]
 keywords = [
     "lerobot",
     "robotics",
@@ -48,8 +48,8 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yafetashenafi790-lgtm/robot-data-diff"
-Issues = "https://github.com/yafetashenafi790-lgtm/robot-data-diff/issues"
+Homepage = "https://github.com/Japheth790/robot-data-diff"
+Issues = "https://github.com/Japheth790/robot-data-diff/issues"
 
 [project.scripts]
 robot-data-diff = "robot_data_diff.cli:main"

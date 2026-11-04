@@ -1,6 +1,6 @@
 # robot-data-diff
 
-[![CI](https://github.com/yafetashenafi790-lgtm/robot-data-diff/actions/workflows/ci.yml/badge.svg)](https://github.com/yafetashenafi790-lgtm/robot-data-diff/actions/workflows/ci.yml)
+[![CI](https://github.com/Japheth790/robot-data-diff/actions/workflows/ci.yml/badge.svg)](https://github.com/Japheth790/robot-data-diff/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/robot-data-diff)](https://pypi.org/project/robot-data-diff/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 

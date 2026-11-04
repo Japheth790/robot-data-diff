@@ -15,7 +15,7 @@ Thanks for helping! Bug reports, docs fixes and PRs are all welcome.
 ## Development setup
 
 ```bash
-git clone https://github.com/yafetashenafi790-lgtm/robot-data-diff
+git clone https://github.com/Japheth790/robot-data-diff
 cd robot-data-diff
 python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate

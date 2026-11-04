@@ -81,6 +81,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   per-episode action stat deltas, task inventory, schema drift, idle/spike
   quality heuristics and an HTML report.
 
-[Unreleased]: https://github.com/yafetashenafi790-lgtm/robot-data-diff/compare/v0.2.0...HEAD
-[0.2.0]: https://github.com/yafetashenafi790-lgtm/robot-data-diff/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/yafetashenafi790-lgtm/robot-data-diff/releases/tag/v0.1.0
+[Unreleased]: https://github.com/Japheth790/robot-data-diff/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Japheth790/robot-data-diff/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/Japheth790/robot-data-diff/releases/tag/v0.1.0
