@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import traceback
 from pathlib import Path
 
 from . import __version__
@@ -36,6 +37,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="pair episodes by episode_index (default) or by a hash "
                         "of their action/state frames, which reports reordered "
                         "episodes as moved instead of added + removed")
+    d.add_argument("--verbose", action="store_true",
+                   help="show full tracebacks on errors")
     d.add_argument("--cache-dir", metavar="DIR", default=None,
                    help="where to cache Hugging Face downloads")
     return p
@@ -72,9 +75,21 @@ def cmd_diff(args) -> int:
 
 
 def main(argv=None) -> int:
+    """Exit codes: 0 OK, 2 error (bad input, unreadable dataset, ...)."""
     args = build_parser().parse_args(argv)
-    if args.cmd == "diff":
-        return cmd_diff(args)
+    try:
+        if args.cmd == "diff":
+            return cmd_diff(args)
+    except KeyboardInterrupt:
+        print("interrupted", file=sys.stderr)
+        return 130
+    except Exception as e:
+        if getattr(args, "verbose", False):
+            traceback.print_exc()
+        else:
+            msg = (str(e).strip().splitlines() or [type(e).__name__])[0]
+            print(f"error: {msg}", file=sys.stderr)
+        return 2
     return 1
 
 

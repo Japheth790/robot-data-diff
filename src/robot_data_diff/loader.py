@@ -120,6 +120,17 @@ def _namespaced_cache_dir(cache_dir: str | Path, repo_id: str,
             / safe(revision or "main"))
 
 
+class DatasetError(ValueError):
+    """A dataset reference can't be resolved or doesn't look like LeRobot."""
+
+
+def _looks_like_path(ref: str) -> bool:
+    # Hub ids are exactly "org/name"; anything else that doesn't exist on
+    # disk is a mistyped local path and must not be sent to the Hub.
+    return (ref.startswith((".", "/", "~")) or "\\" in ref or ":" in ref
+            or ref.count("/") != 1)
+
+
 def resolve_ref(ref: str, cache_dir: str | Path | None = None,
                 with_data: bool = True) -> Path:
     """Turn a dataset reference into a local directory Path.
@@ -130,27 +141,32 @@ def resolve_ref(ref: str, cache_dir: str | Path | None = None,
     each repo@revision gets its own subdirectory inside it, so diffs never
     read each other's files.
     """
-    p = Path(ref)
+    p = Path(ref).expanduser()
     if p.exists():
+        if not p.is_dir():
+            raise DatasetError(f"'{ref}' is a file, not a dataset directory")
         return p
+    repo_id, _, revision = ref.removeprefix("hf://").partition("@")
+    if not ref.startswith("hf://") and _looks_like_path(repo_id):
+        raise DatasetError(f"'{ref}' does not exist (not a local directory, and "
+                           "not a Hugging Face id like 'lerobot/pusht[@rev]')")
     _strip_no_proxy()
     from huggingface_hub import snapshot_download
 
-    repo_id, _, revision = ref.removeprefix("hf://").partition("@")
-    if "/" not in repo_id:
-        raise ValueError(
-            f"'{ref}' is not a local path and not a Hugging Face id "
-            "(expected like 'lerobot/pusht' or 'lerobot/pusht@<rev>')."
-        )
     local_dir = (_namespaced_cache_dir(cache_dir, repo_id, revision)
                  if cache_dir is not None else None)
-    local = snapshot_download(
-        repo_id,
-        repo_type="dataset",
-        revision=revision or None,
-        allow_patterns=["meta/**", "data/**"] if with_data else ["meta/**"],
-        local_dir=local_dir,
-    )
+    try:
+        local = snapshot_download(
+            repo_id,
+            repo_type="dataset",
+            revision=revision or None,
+            allow_patterns=["meta/**", "data/**"] if with_data else ["meta/**"],
+            local_dir=local_dir,
+        )
+    except Exception as e:
+        first = (str(e).strip().splitlines() or [type(e).__name__])[0]
+        raise DatasetError(f"'{ref}' is not a local directory, and downloading it "
+                           f"from the Hugging Face Hub failed: {first}") from e
     return Path(local)
 
 
@@ -184,7 +200,7 @@ def _load_v3(root: Path, name: str) -> DatasetView:
 
     ep_files = sorted((root / "meta" / "episodes").rglob("*.parquet"))
     if not ep_files:
-        raise ValueError(f"no episode metadata found under {root}/meta/episodes")
+        raise DatasetError(f"no episode metadata found under {root}/meta/episodes")
     episodes: dict[int, EpisodeInfo] = {}
     for f in ep_files:
         pf = pq.ParquetFile(f)
@@ -224,6 +240,8 @@ def _load_v2(root: Path, name: str) -> DatasetView:
 
     episodes: dict[int, EpisodeInfo] = {}
     ep_path = root / "meta" / "episodes.jsonl"
+    if not ep_path.exists():
+        raise DatasetError(f"{root}: v2 dataset without meta/episodes.jsonl")
     for line in ep_path.read_text().splitlines():
         line = line.strip()
         if not line:
@@ -414,8 +432,8 @@ def load_dataset(ref: str, cache_dir: str | Path | None = None,
     root = resolve_ref(ref, cache_dir, with_data=read_data)
     info_path = root / "meta" / "info.json"
     if not info_path.exists():
-        raise ValueError(f"{root} does not look like a LeRobot dataset "
-                         "(missing meta/info.json).")
+        raise DatasetError(f"{root} does not look like a LeRobot dataset "
+                           "(missing meta/info.json)")
     version = str(json.loads(info_path.read_text()).get("codebase_version", ""))
     name = ref if isinstance(ref, str) else str(ref)
     if version.startswith("v3"):
@@ -423,7 +441,8 @@ def load_dataset(ref: str, cache_dir: str | Path | None = None,
     elif version.startswith("v2"):
         ds = _load_v2(root, name)
     else:
-        raise ValueError(f"unsupported LeRobot codebase_version: {version!r}")
+        raise DatasetError(f"{root}: unsupported LeRobot codebase_version {version!r} "
+                           "(supported: v2.x, v3.x)")
     if read_data:
         verify = _verifiable_features(ds) if verify_stats else []
         columns = set(verify)
