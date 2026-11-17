@@ -4,6 +4,8 @@
 [![PyPI](https://img.shields.io/pypi/v/robot-data-diff)](https://pypi.org/project/robot-data-diff/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Japheth790/robot-data-diff/blob/main/notebooks/try-robot-data-diff.ipynb)
+
 **You retrained the policy and it got worse. `robot-data-diff` tells you what
 changed in the LeRobot dataset since the last good run, episode by episode.**
 
